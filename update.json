@@ -1,0 +1,13 @@
+{
+  "versionCode": 13,
+  "versionName": "1.2.19",
+  "notes": [
+    "关于页重做 图标居中 版本与编译时间",
+    "作者头像与贡献者信息",
+    "展开收起改用中性色",
+    "档案卡片显示作者头像与昵称"
+  ],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.19/MEMORA-v1.2.19-release.apk",
+  "size": 12016674,
+  "sha256": "f9de3181fa8354f3242faeebe77c73f90bfc264a1d2b70aaa9f0b177e3b3f299"
+}
