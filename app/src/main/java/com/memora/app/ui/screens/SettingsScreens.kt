@@ -728,6 +728,7 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var sourceOpen by remember { mutableStateOf(false) }
     var sourceText by remember { mutableStateOf(Prefs.updateSource.value) }
+    var rebuildConfirm by remember { mutableStateOf(false) }
     val scope2 = rememberCoroutineScope()
     val crash = remember(reload) { com.memora.app.core.Crash.last(context) }
     val icon = com.memora.app.ui.components.rememberDrawableBitmap(com.memora.app.R.drawable.ic_launcher_fg)
@@ -918,7 +919,10 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
                             )
                         }
                         Spacer(Modifier.height(8.dp))
-                        GhostButton("刷新") { reload++ }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GhostButton("刷新") { reload++ }
+                            GhostButton("重建数据库") { rebuildConfirm = true }
+                        }
                     }
                     Divider()
                     Row(
@@ -948,6 +952,34 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
     }
 
     update?.let { info -> UpdateDialog(info) { update = null } }
+
+    if (rebuildConfirm) {
+        OverlayDialog(
+            show = true,
+            title = "重建数据库",
+            summary = "会清空本机档案，无法撤销",
+            onDismissRequest = { rebuildConfirm = false },
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Text(
+                    "只有反复出现数据库错误时才用。之前的归档内容会全部丢失，QQ 空间本身不受影响。",
+                    fontSize = 11.5.sp, color = c.secondary, lineHeight = 18.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GhostButton("取消") { rebuildConfirm = false }
+                    GhostButton("确认重建") {
+                        Db.rebuild(context)
+                        Prefs.setActiveAccount("")
+                        AppState.account.value = null
+                        scope2.launch { AppState.reload(context) }
+                        rebuildConfirm = false
+                        note = "数据库已重建 请重新登录"
+                    }
+                }
+            }
+        }
+    }
 
     if (sourceOpen) {
         OverlayDialog(

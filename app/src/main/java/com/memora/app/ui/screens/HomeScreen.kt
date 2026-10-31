@@ -84,10 +84,12 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
         val acc = account ?: run { run = null; return@LaunchedEffect }
         suspend fun load() {
             withContext(Dispatchers.IO) {
-                val db = Db.get(context)
-                val t = active ?: runCatching { db.tasks(acc.id, limit = 1).firstOrNull() }.getOrNull()
-                run = t?.let {
-                    RunSnapshot(it, db.stat(it.id), db.mediaTally(it.accountId, it.createdAt))
+                runCatching {
+                    val db = Db.get(context)
+                    val t = active ?: db.tasks(acc.id, limit = 1).firstOrNull()
+                    run = t?.let {
+                        RunSnapshot(it, db.stat(it.id), db.mediaTally(it.accountId, it.createdAt))
+                    }
                 }
             }
         }

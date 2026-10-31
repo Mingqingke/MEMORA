@@ -83,7 +83,7 @@ val MemoraDark = MemoraColors(
 val LocalMemora = staticCompositionLocalOf { MemoraLight }
 
 private val LightScheme = lightColorScheme(
-    primary = Color(0xFF3482FF),
+    primary = Color(0xFF0A0A0A),
     background = Color(0xFFF4F4F6),
     onBackground = Color(0xFF0A0A0A),
     surface = Color(0xFFF4F4F6),
@@ -97,7 +97,7 @@ private val LightScheme = lightColorScheme(
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = Color(0xFF5B9BFF),
+    primary = Color(0xFFF2F2F2),
     background = Color(0xFF0E0F11),
     onBackground = Color(0xFFF2F2F2),
     surface = Color(0xFF0E0F11),

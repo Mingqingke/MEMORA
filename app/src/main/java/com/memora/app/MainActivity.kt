@@ -15,6 +15,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 能正常进入界面就说明这次启动没崩，清掉连续崩溃计数
+        window.decorView.postDelayed({
+            runCatching { com.memora.app.core.Crash.clearStreak(this) }
+        }, 3000)
         setContent {
             val mode by Prefs.themeMode.collectAsState()
             MemoraTheme(mode) { MemoraRoot() }

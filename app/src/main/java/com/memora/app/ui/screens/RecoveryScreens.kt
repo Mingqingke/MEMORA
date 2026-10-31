@@ -104,10 +104,12 @@ fun RecoveryScreen(onOpen: (Route) -> Unit) {
         val acc = account
         if (acc == null) { lastRun = null; previousRun = null; return@LaunchedEffect }
         withContext(Dispatchers.IO) {
-            val db = Db.get(context)
-            val list = db.tasks(acc.id, limit = 2)
-            lastRun = list.getOrNull(0)?.let { t -> RunSummary(t, db.stat(t.id), db.mediaTally(acc.id, t.createdAt, t.updatedAt + 1)) }
-            previousRun = list.getOrNull(1)?.let { t -> RunSummary(t, db.stat(t.id), db.mediaTally(acc.id, t.createdAt, t.updatedAt + 1)) }
+            runCatching {
+                val db = Db.get(context)
+                val list = db.tasks(acc.id, limit = 2)
+                lastRun = list.getOrNull(0)?.let { t -> RunSummary(t, db.stat(t.id), db.mediaTally(acc.id, t.createdAt, t.updatedAt + 1)) }
+                previousRun = list.getOrNull(1)?.let { t -> RunSummary(t, db.stat(t.id), db.mediaTally(acc.id, t.createdAt, t.updatedAt + 1)) }
+            }
         }
     }
 

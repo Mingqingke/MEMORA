@@ -107,9 +107,10 @@ object TaskEngine {
             }
         }
         if (Prefs.autoResume.value) {
-            for (t in db.resumeCandidates(accountId)) {
-                if (t.status == TaskStatus.PAUSED || t.status == TaskStatus.RATE_LIMITED) start(app, t.id)
-            }
+            // 只续跑最近的一个，避免一次拉起多个前台服务
+            db.resumeCandidates(accountId)
+                .firstOrNull { it.status == TaskStatus.PAUSED || it.status == TaskStatus.RATE_LIMITED }
+                ?.let { start(app, it.id) }
         }
     }
 

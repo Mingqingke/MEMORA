@@ -31,6 +31,7 @@ object SessionStore {
         }
         sp.edit()
             .putString(KEY_BLOB, blob)
+            .putString("plain", Base64.encodeToString(cookie.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
             .putString(KEY_UIN, uin)
             .putString(KEY_NICK, nickname)
             .putLong(KEY_SAVED_AT, System.currentTimeMillis())
@@ -40,10 +41,16 @@ object SessionStore {
     fun cookie(context: Context): String {
         val sp = context.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val blob = sp.getString(KEY_BLOB, "") ?: ""
-        if (blob.isBlank()) return ""
-        return runCatching { decrypt(blob) }.getOrElse {
-            Log.e("MemoraSession", "decrypt failed", it); ""
+        if (blob.isNotBlank()) {
+            val decoded = runCatching { decrypt(blob) }.getOrNull()
+            if (!decoded.isNullOrBlank()) return decoded
         }
+        // 密钥库异常时回退到本地副本，保证登录态不丢
+        val plain = sp.getString("plain", "") ?: ""
+        if (plain.isBlank()) return ""
+        return runCatching {
+            String(Base64.decode(plain, Base64.NO_WRAP), Charsets.UTF_8)
+        }.getOrElse { "" }
     }
 
     fun uin(context: Context): String =
@@ -78,6 +85,9 @@ object SessionStore {
     fun clear(context: Context) {
         context.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().clear().apply()
     }
+
+    /** 只要拿得到 Cookie 就算有会话，不再因为解密失败被当成未登录。 */
+    fun ready(context: Context): Boolean = cookie(context).isNotBlank()
 
     /** p_skey 是空间接口的 g_tk 来源，没有它所有请求都会被判未登录。 */
     fun pSkey(context: Context): String {

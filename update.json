@@ -1,13 +1,13 @@
 {
-  "versionCode": 13,
-  "versionName": "1.2.19",
+  "versionCode": 17,
+  "versionName": "1.2.23",
   "notes": [
-    "关于页重做 图标居中 版本与编译时间",
-    "作者头像与贡献者信息",
-    "展开收起改用中性色",
-    "档案卡片显示作者头像与昵称"
+    "修复全屏提示条挡住点击",
+    "登录状态不再因解密失败丢失",
+    "数据库自检与自动重建",
+    "恢复页面转场"
   ],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.19/MEMORA-v1.2.19-release.apk",
-  "size": 12016674,
-  "sha256": "f9de3181fa8354f3242faeebe77c73f90bfc264a1d2b70aaa9f0b177e3b3f299"
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.23/MEMORA-v1.2.23-release.apk",
+  "size": 12032994,
+  "sha256": "8aa1682cc73c62e576e42d997668a0728861ab930e591166803622234a11d1bf"
 }

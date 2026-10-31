@@ -6,21 +6,23 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -32,18 +34,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.Alignment
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -83,12 +88,8 @@ import com.memora.app.ui.theme.LocalMemora
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Contacts
@@ -100,6 +101,15 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplay
 import top.yukonga.miuix.kmp.nav.core.rememberNavController
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+private data class TabItem(val icon: ImageVector, val label: String)
+
+private val TABS = listOf(
+    TabItem(MiuixIcons.Home, "首页"),
+    TabItem(MiuixIcons.Contacts, "好友"),
+    TabItem(MiuixIcons.Scan, "归档"),
+    TabItem(MiuixIcons.Settings, "设置"),
+)
 
 @Composable
 private fun PageSurface(content: @Composable () -> Unit) {
@@ -137,16 +147,17 @@ private fun PageSurface(content: @Composable () -> Unit) {
 }
 
 /**
- * 四个底部入口：首页 / 好友 / 归档 / 设置。
- * 档案、搜索、任务、详情等页面在各自栈内 push，返回逐级出栈。
+ * 四个入口：首页 / 好友 / 归档 / 设置。
+ * 窄屏底部导航，宽屏左侧竖栏；只渲染当前栈，避免两层页面叠加。
  */
 @Composable
 fun MemoraRoot() {
+    val c = LocalMemora.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
+    var snackMessage by remember { mutableStateOf<String?>(null) }
     val reduceMotion by Prefs.reduceMotion.collectAsState()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(0) }
     val toast by AppState.toast.collectAsState()
     val running by TaskEngine.runningIds.collectAsState()
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -163,6 +174,7 @@ fun MemoraRoot() {
         else -> homeNav
     }
     val atRoot = activeNav.backStack.size == 1
+    val wide = LocalConfiguration.current.screenWidthDp >= 840
 
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -173,9 +185,9 @@ fun MemoraRoot() {
             if (!granted) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         AppState.bind(context)
-        withContext(Dispatchers.IO) { TaskEngine.recoverInterrupted(context) }
-        AppState.reload(context)
-        if (Prefs.autoCheckUpdate.value) {
+        withContext(Dispatchers.IO) { runCatching { TaskEngine.recoverInterrupted(context) } }
+        runCatching { AppState.reload(context) }
+        if (Prefs.autoCheckUpdate.value && !com.memora.app.core.Crash.inSafeMode(context)) {
             val r = runCatching { withContext(Dispatchers.IO) { Updater.check(context) } }.getOrNull()
             if (r is UpdateCheck.Available && r.info.versionCode != Prefs.ignoredVersion.value) {
                 update = r.info
@@ -185,12 +197,14 @@ fun MemoraRoot() {
 
     LaunchedEffect(toast) {
         if (toast.isNotBlank()) {
-            snackbar.showSnackbar(toast)
+            snackMessage = toast
             AppState.consumeToast()
+            kotlinx.coroutines.delay(2200)
+            snackMessage = null
         }
     }
 
-    LaunchedEffect(running) { AppState.reload(context) }
+    LaunchedEffect(running) { runCatching { AppState.reload(context) } }
 
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
@@ -199,7 +213,7 @@ fun MemoraRoot() {
                 Lifecycle.Event.ON_START -> {
                     AppForeground.visible = true
                     scope.launch {
-                        AppState.reload(context)
+                        runCatching { AppState.reload(context) }
                         running.firstOrNull()?.let { SyncService.ensure(context, it, "档案归档") }
                     }
                 }
@@ -213,144 +227,138 @@ fun MemoraRoot() {
 
     BackHandler(enabled = tab != 0 && atRoot) { tab = 0 }
 
-    val transition = if (reduceMotion) NavTransitions.None else NavTransitions.MiuixDefault
-    val wide = LocalConfiguration.current.screenWidthDp >= 840
-
-    val page: @Composable () -> Unit = {
-        Box(Modifier.fillMaxSize().background(MiuixTheme.colorScheme.surface)) {
-            update?.let { info ->
-                UpdateDialog(info) { update = null }
-            }
-            Crossfade(
-                targetState = tab,
-                animationSpec = tween(if (reduceMotion) 0 else 160),
-                label = "tab",
-            ) { current ->
-                val nav = when (current) {
-                    1 -> peopleNav
-                    2 -> recoveryNav
-                    3 -> settingsNav
-                    else -> homeNav
-                }
-                NavDisplay(
-                    navController = nav,
-                    modifier = Modifier.fillMaxSize(),
-                    transition = transition,
+    Box(Modifier.fillMaxSize()) {
+        if (wide) {
+            Row(Modifier.fillMaxSize()) {
+                SideRail(current = tab, onSelect = { tab = it })
+                Box(
+                    Modifier.weight(1f).fillMaxHeight()
+                        .zIndex(1f)
+                        .clipToBounds()
+                        .background(MiuixTheme.colorScheme.surface)
                 ) {
-                    entry<Route.Home> {
-                        PageSurface {
-                            HomeScreen(
-                                onOpen = { nav.push(it) },
-                                onSettings = { tab = 3 },
-                            )
-                        }
-                    }
-                    entry<Route.People> {
-                        PageSurface { PeopleScreen(onOpen = { nav.push(it) }) }
-                    }
-                    entry<Route.Recovery> {
-                        PageSurface { RecoveryScreen(onOpen = { nav.push(it) }) }
-                    }
-                    entry<Route.Settings> {
-                        PageSurface { SettingsHomeScreen(onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.Archive> {
-                        PageSurface { ArchiveScreen(onOpen = { nav.push(it) }) }
-                    }
-                    entry<Route.Media> {
-                        PageSurface { MediaCenterScreen(onBack = { nav.pop() }) }
-                    }
-                    entry<Route.Search> {
-                        PageSurface { SearchScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) }
-                    }
-                    entry<Route.Tasks> {
-                        PageSurface { TasksScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) }
-                    }
-                    entry<Route.TaskDetail> { route ->
-                        PageSurface { TaskDetailScreen(route.taskId, onBack = { nav.pop() }) }
-                    }
-                    entry<Route.FriendDetail> { route ->
-                        PageSurface { FriendDetailScreen(route.uin, onBack = { nav.pop() }) }
-                    }
-                    entry<Route.MomentDetail> { route ->
-                        PageSurface { MomentDetailScreen(route.tid, onBack = { nav.pop() }) }
-                    }
-                    entry<Route.ImportArchive> {
-                        PageSurface { ImportArchiveScreen(onBack = { nav.pop() }) }
-                    }
-                    entry<Route.Login> {
-                        PageSurface { LoginScreen(onBack = { nav.pop() }, onDone = { nav.pop() }) }
-                    }
-                    entry<Route.SettingsAccount> {
-                        PageSurface { SettingsAccountScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.SettingsRecovery> {
-                        PageSurface { SettingsCaptureScreen(onBack = { settingsNav.pop() }) }
-                    }
-                    entry<Route.SettingsTasks> {
-                        PageSurface { SettingsTaskNetworkScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.SettingsStorage> {
-                        PageSurface { SettingsStorageScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.SettingsAppearance> {
-                        PageSurface { SettingsAppearanceScreen(onBack = { settingsNav.pop() }) }
-                    }
-                    entry<Route.SettingsExport> {
-                        PageSurface { SettingsExportScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.SettingsDiagnostic> {
-                        PageSurface { SettingsDiagnosticScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.About> {
-                        PageSurface { AboutScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
-                    entry<Route.Licenses> {
-                        PageSurface { LicensesScreen(onBack = { settingsNav.pop() }) }
-                    }
-                    entry<Route.ArchiveCheck> {
-                        PageSurface { ArchiveCheckScreen(onBack = { settingsNav.pop() }, onOpen = { settingsNav.push(it) }) }
-                    }
+                    NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
+                }
+            }
+        } else {
+            Scaffold(
+                bottomBar = { BottomBar(tab) { tab = it } },
+            ) { padding ->
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
+                }
+            }
+        }
+
+        UpdateDialogHost(update) { update = null }
+
+        // 只占自身大小的提示条，不铺满屏幕、不拦截点击
+        snackMessage?.let { msg ->
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (wide) 24.dp else 92.dp)
+                    .padding(horizontal = 24.dp),
+            ) {
+                Box(
+                    Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .background(c.ink.copy(alpha = 0.92f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Text(msg, fontSize = 12.5.sp, color = c.card, maxLines = 2)
                 }
             }
         }
     }
-
-    if (wide) {
-        Row(Modifier.fillMaxSize()) {
-            SideRail(current = tab, onSelect = { tab = it })
-            Box(Modifier.weight(1f)) { page() }
-        }
-    } else {
-        Scaffold(
-            bottomBar = {
-                if (atRoot) {
-                    NavigationBar {
-                        NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = MiuixIcons.Home, label = "首页")
-                        NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = MiuixIcons.Contacts, label = "好友")
-                        NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = MiuixIcons.Scan, label = "归档")
-                        NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = MiuixIcons.Settings, label = "设置")
-                    }
-                }
-            },
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) { page() }
-        }
-    }
-
-    SnackbarHost(snackbar, Modifier.fillMaxSize())
 }
 
-/** 平板横屏：左侧竖向导航，右侧内容铺满。 */
+@Composable
+private fun NavHost(nav: NavController, reduceMotion: Boolean, wide: Boolean, onOpenSettings: () -> Unit) {
+    androidx.compose.runtime.key(nav) {
+    val transition = remember(reduceMotion) {
+        if (reduceMotion) NavTransitions.None else NavTransitions.MiuixDefault
+    }
+    NavDisplay(
+        navController = nav,
+        modifier = Modifier.fillMaxSize().clipToBounds(),
+        transition = transition,
+    ) {
+        entry<Route.Home> {
+            PageSurface { HomeScreen(onOpen = { nav.push(it) }, onSettings = onOpenSettings) }
+        }
+        entry<Route.People> { PageSurface { PeopleScreen(onOpen = { nav.push(it) }) } }
+        entry<Route.Recovery> { PageSurface { RecoveryScreen(onOpen = { nav.push(it) }) } }
+        entry<Route.Settings> { PageSurface { SettingsHomeScreen(onOpen = { nav.push(it) }) } }
+        entry<Route.Archive> { PageSurface { ArchiveScreen(onOpen = { nav.push(it) }) } }
+        entry<Route.Media> { PageSurface { MediaCenterScreen(onBack = { nav.pop() }) } }
+        entry<Route.Search> { PageSurface { SearchScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) } }
+        entry<Route.Tasks> { PageSurface { TasksScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) } }
+        entry<Route.TaskDetail> { r -> PageSurface { TaskDetailScreen(r.taskId, onBack = { nav.pop() }) } }
+        entry<Route.FriendDetail> { r -> PageSurface { FriendDetailScreen(r.uin, onBack = { nav.pop() }) } }
+        entry<Route.MomentDetail> { r -> PageSurface { MomentDetailScreen(r.tid, onBack = { nav.pop() }) } }
+        entry<Route.ImportArchive> { PageSurface { ImportArchiveScreen(onBack = { nav.pop() }) } }
+        entry<Route.Login> { PageSurface { LoginScreen(onBack = { nav.pop() }, onDone = { nav.pop() }) } }
+        entry<Route.SettingsAccount> { PageSurface { SettingsAccountScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsRecovery> { PageSurface { SettingsCaptureScreen(onBack = { nav.pop() }) } }
+        entry<Route.SettingsTasks> { PageSurface { SettingsTaskNetworkScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsStorage> { PageSurface { SettingsStorageScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsAppearance> { PageSurface { SettingsAppearanceScreen(onBack = { nav.pop() }) } }
+        entry<Route.SettingsExport> { PageSurface { SettingsExportScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsDiagnostic> { PageSurface { SettingsDiagnosticScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.About> { PageSurface { AboutScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.Licenses> { PageSurface { LicensesScreen(onBack = { nav.pop() }) } }
+        entry<Route.ArchiveCheck> { PageSurface { ArchiveCheckScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+    }
+    }
+}
+
+/** 首页右上角的设置按钮：切到设置栈。 */
+@Composable
+private fun UpdateDialogHost(info: UpdateInfo?, onDismiss: () -> Unit) {
+    if (info != null) UpdateDialog(info, onDismiss)
+}
+
+/** 底部导航：选中为黑色，未选中灰色，不使用绿色。 */
+@Composable
+private fun BottomBar(current: Int, onSelect: (Int) -> Unit) {
+    val c = LocalMemora.current
+    Row(
+        Modifier.fillMaxWidth()
+            .background(MiuixTheme.colorScheme.surface)
+            .navigationBarsPadding()
+            .padding(top = 8.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TABS.forEachIndexed { index, item ->
+            val selected = current == index
+            Column(
+                Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .clickable { onSelect(index) }
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    item.icon, item.label, Modifier.size(22.dp),
+                    tint = if (selected) c.ink else c.secondary.copy(alpha = 0.75f),
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    item.label, fontSize = 10.5.sp,
+                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    color = if (selected) c.ink else c.secondary,
+                )
+            }
+        }
+    }
+}
+
+/** 平板横屏：左侧竖向导航（黑色选中）。 */
 @Composable
 private fun SideRail(current: Int, onSelect: (Int) -> Unit) {
     val c = LocalMemora.current
-    val items = listOf(
-        Triple(MiuixIcons.Home, "首页", 0),
-        Triple(MiuixIcons.Contacts, "好友", 1),
-        Triple(MiuixIcons.Scan, "归档", 2),
-        Triple(MiuixIcons.Settings, "设置", 3),
-    )
     Column(
         Modifier
             .width(88.dp)
@@ -359,25 +367,26 @@ private fun SideRail(current: Int, onSelect: (Int) -> Unit) {
             .statusBarsPadding()
             .padding(top = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        items.forEach { (icon, label, index) ->
+        TABS.forEachIndexed { index, item ->
             val selected = current == index
             Column(
                 Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                     .clickable { onSelect(index) }
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(
-                    icon, label, Modifier.size(23.dp),
-                    tint = if (selected) c.green else c.secondary.copy(alpha = 0.75f),
+                    item.icon, item.label, Modifier.size(23.dp),
+                    tint = if (selected) c.ink else c.secondary.copy(alpha = 0.75f),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    label, fontSize = 10.5.sp,
+                    item.label, fontSize = 10.5.sp,
                     fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                    color = if (selected) c.green else c.secondary,
+                    color = if (selected) c.ink else c.secondary,
                 )
             }
         }

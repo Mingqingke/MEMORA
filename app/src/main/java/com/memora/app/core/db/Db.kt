@@ -35,7 +35,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
 
     companion object {
         private const val NAME = "memora_archive.db"
-        private const val VERSION = 6
+        private const val VERSION = 7
         @Volatile private var instance: Db? = null
 
         fun get(context: Context): Db = instance ?: synchronized(this) {
@@ -43,8 +43,18 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
                 val app = context.applicationContext
                 var db = Db(app)
                 // 数据库打不开（旧版本残留、FTS 模块缺失、文件损坏）时重建一次，避免整页闪退
+                fun coreOk(d: Db): Boolean = runCatching {
+                    d.readableDatabase.rawQuery("SELECT COUNT(*) FROM accounts", null).use { it.moveToFirst() }
+                }.getOrDefault(false)
                 try {
                     db.writableDatabase
+                    if (!coreOk(db)) {
+                        Log.e("MemoraDb", "core tables missing, rebuilding")
+                        runCatching { db.close() }
+                        runCatching { app.deleteDatabase(NAME) }
+                        db = Db(app)
+                        db.writableDatabase
+                    }
                 } catch (t: Throwable) {
                     Log.e("MemoraDb", "open failed, rebuilding", t)
                     runCatching { db.close() }
@@ -56,6 +66,15 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         }
 
         fun momentKey(accountId: String, tid: String) = "$accountId:$tid"
+
+        /** 结构损坏时的兜底：关库、删文件、重建。调用方必须先拿到用户确认。 */
+        fun rebuild(context: Context) {
+            synchronized(this) {
+                runCatching { instance?.close() }
+                instance = null
+                runCatching { context.applicationContext.deleteDatabase(NAME) }
+            }
+        }
     }
 
     init {
@@ -71,9 +90,35 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         createSchema(db)
     }
 
-    /** 每次打开都补齐缺失的表：旧版本可能因为语句失败留下半套结构。 */
+    /** 每次打开都补齐缺失的表与列：旧版本可能因为语句失败留下半套结构。 */
     override fun onOpen(db: SQLiteDatabase) {
         runCatching { createSchema(db) }.onFailure { Log.e("MemoraDb", "repair failed", it) }
+        runCatching { db.execSQL("CREATE TABLE IF NOT EXISTS search_index(ref TEXT PRIMARY KEY, text TEXT NOT NULL)") }
+        runCatching { repairColumns(db) }.onFailure { Log.e("MemoraDb", "repairColumns failed", it) }
+    }
+
+    /** 任何历史版本缺的列都补上，避免 no such column 直接把页面打崩。 */
+    private fun repairColumns(db: SQLiteDatabase) {
+        val specs = listOf(
+            Triple("friends", "misses", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("friends", "addedAt", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("friends", "tags", "TEXT"),
+            Triple("friends", "note", "TEXT"),
+            Triple("friends", "relation", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("moment_media", "queuedAt", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("moment_media", "albumId", "TEXT"),
+            Triple("moment_media", "caption", "TEXT"),
+            Triple("moments", "visibility", "TEXT"),
+            Triple("moments", "fieldCount", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("tasks", "note", "TEXT"),
+            Triple("source_states", "records", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("authors", "posts", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("authors", "comments", "INTEGER NOT NULL DEFAULT 0"),
+        )
+        specs.forEach { (table, column, type) ->
+            runCatching { ensureColumn(db, table, column, type) }
+                .onFailure { Log.w("MemoraDb", "ensure $table.$column failed", it) }
+        }
     }
 
     private fun createSchema(db: SQLiteDatabase) {
@@ -125,8 +170,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
               content TEXT, createTime INTEGER, location TEXT, visibility TEXT,
               state TEXT NOT NULL, completeness INTEGER NOT NULL, confidence INTEGER NOT NULL,
               fieldCount INTEGER NOT NULL DEFAULT 0,
-              createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
-              primarySource TEXT NOT NULL DEFAULT ''
+              createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL
             )
             """.trimIndent()
         )
@@ -239,17 +283,28 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         )
     }
 
+    private fun ensureColumn(db: SQLiteDatabase, table: String, column: String, type: String) {
+        val exists = db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+            var found = false
+            while (c.moveToNext()) {
+                if (c.getString(1).equals(column, ignoreCase = true)) { found = true; break }
+            }
+            found
+        }
+        if (!exists) db.execSQL("ALTER TABLE $table ADD COLUMN $column $type")
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 档案数据只增不删：按列增量迁移，不清空、不重建
+        // 档案只增不删：按列增量迁移，不清空、不重建
         if (oldVersion < 2) {
-            runCatching { db.execSQL("ALTER TABLE moment_media ADD COLUMN queuedAt INTEGER NOT NULL DEFAULT 0") }
+            runCatching { ensureColumn(db, "moment_media", "queuedAt", "INTEGER NOT NULL DEFAULT 0") }
         }
         if (oldVersion < 3) {
-            runCatching { db.execSQL("ALTER TABLE friends ADD COLUMN addedAt INTEGER NOT NULL DEFAULT 0") }
+            runCatching { ensureColumn(db, "friends", "addedAt", "INTEGER NOT NULL DEFAULT 0") }
         }
-        if (oldVersion < 4) {
-            // 旧版本尝试过 FTS5：不支持该模块的机型会因此打不开数据库，这里清掉
+        if (oldVersion < 5) {
             runCatching { db.execSQL("DROP TABLE IF EXISTS search_fts") }
+            runCatching { db.execSQL("CREATE TABLE IF NOT EXISTS search_index(ref TEXT PRIMARY KEY, text TEXT NOT NULL)") }
         }
         if (oldVersion < 6) {
             runCatching {
@@ -260,21 +315,9 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
                 )
             }
         }
-        if (oldVersion < 6) {
-            runCatching { db.execSQL("ALTER TABLE moments ADD COLUMN primarySource TEXT NOT NULL DEFAULT ''") }
-            runCatching {
-                db.execSQL(
-                    "UPDATE moments SET primarySource = COALESCE((SELECT sourceId FROM moment_fields WHERE momentId=moments.id LIMIT 1),'') " +
-                        "WHERE primarySource=''"
-                )
-            }
-            runCatching { db.execSQL("CREATE INDEX IF NOT EXISTS idx_moments_source ON moments(accountId, primarySource)") }
-        }
-        if (oldVersion < 5) {
-            runCatching {
-                db.execSQL("CREATE TABLE IF NOT EXISTS IF NOT EXISTS search_index(ref TEXT PRIMARY KEY, text TEXT NOT NULL)")
-            }
-            runCatching { db.execSQL("DROP TABLE IF EXISTS search_fts") }
+        if (oldVersion < 7) {
+            // v7：主来源改用 moment_fields 实时计算，不再依赖 moments 上的冗余列
+            runCatching { db.execSQL("DROP INDEX IF EXISTS idx_moments_source") }
         }
     }
 
@@ -513,7 +556,6 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
                 put("completeness", completeness.dots)
                 put("confidence", confidence.ordinal)
                 put("createdAt", existing?.createdAt ?: now); put("updatedAt", now)
-                if (existing == null || existing.primarySource.isBlank()) put("primarySource", sourceId)
             }
             db.insertWithOnConflict("moments", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
             val fcv = ContentValues()
@@ -990,16 +1032,24 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
     }
 
     /** 中文按子串匹配（SQLite 无内置分词，这里不谎称全文检索）。 */
-    fun search(accountId: String, q: String, limit: Int = 80): List<Moment> {
+    fun search(
+        accountId: String, q: String, limit: Int = 80,
+        from: Long? = null, to: Long? = null,
+    ): List<Moment> {
         if (q.isBlank()) return emptyList()
-        return readableDatabase.rawQuery(
+        val sb = StringBuilder(
             "SELECT $MOMENT_COLS, (SELECT COUNT(*) FROM comments c WHERE c.momentId=m.id), " +
                 "(SELECT COUNT(*) FROM activities a WHERE a.linkedMomentId=m.id), " +
                 "(SELECT COUNT(*) FROM moment_media mm WHERE mm.momentId=m.id) FROM moments m " +
-                "WHERE m.accountId=? AND (m.content LIKE ? OR m.tid LIKE ? OR m.location LIKE ?) " +
-                "ORDER BY m.createTime DESC LIMIT $limit",
-            arrayOf(accountId, "%$q%", "%$q%", "%$q%")
-        ).use { c -> ArrayList<Moment>().also { l -> while (c.moveToNext()) l.add(c.toMoment()) } }
+                "WHERE m.accountId=? AND (m.content LIKE ? OR m.tid LIKE ? OR m.location LIKE ?)"
+        )
+        val args = arrayListOf(accountId, "%$q%", "%$q%", "%$q%")
+        if (from != null) { sb.append(" AND m.createTime>=?"); args.add(from.toString()) }
+        if (to != null) { sb.append(" AND m.createTime<?"); args.add(to.toString()) }
+        sb.append(" ORDER BY m.createTime DESC LIMIT $limit")
+        return readableDatabase.rawQuery(sb.toString(), args.toTypedArray()).use { c ->
+            ArrayList<Moment>().also { l -> while (c.moveToNext()) l.add(c.toMoment()) }
+        }
     }
 
     private fun Cursor.toMoment() = Moment(
@@ -1134,7 +1184,10 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         return n
     }
 
-    fun searchIndexed(accountId: String, q: String, limit: Int = 120): List<Moment> {
+    fun searchIndexed(
+        accountId: String, q: String, limit: Int = 120,
+        from: Long? = null, to: Long? = null,
+    ): List<Moment> {
         if (q.isBlank()) return emptyList()
         val ids = runCatching {
             readableDatabase.rawQuery(
@@ -1144,8 +1197,14 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         }.getOrDefault(emptyList())
         if (ids.isEmpty()) return emptyList()
         val out = ArrayList<Moment>(ids.size)
-        ids.forEach { id -> runCatching { momentById(id) }.getOrNull()?.let { out.add(it) } }
-        return out
+        ids.forEach { id ->
+            val m = runCatching { momentById(id) }.getOrNull() ?: return@forEach
+            val t = m.createTime
+            if (from != null && (t == null || t < from)) return@forEach
+            if (to != null && (t == null || t >= to)) return@forEach
+            out.add(m)
+        }
+        return out.sortedByDescending { it.createTime ?: 0L }
     }
 
     data class MediaRow(
@@ -1254,4 +1313,4 @@ private const val FRIEND_COLS =
     "accountId,uin,nickname,remark,avatar,groups,relation,firstSeenAt,lastSeenAt,addedAt,goneState,goneSinceAt,snapshots,misses,tags,note"
 
 private const val MOMENT_COLS =
-    "m.id,m.accountId,m.tid,m.authorUin,m.content,m.createTime,m.location,m.state,m.completeness,m.confidence,m.fieldCount,m.createdAt,m.updatedAt,m.primarySource"
+    "m.id,m.accountId,m.tid,m.authorUin,m.content,m.createTime,m.location,m.state,m.completeness,m.confidence,m.fieldCount,m.createdAt,m.updatedAt"

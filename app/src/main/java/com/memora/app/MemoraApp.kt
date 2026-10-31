@@ -9,10 +9,13 @@ import com.memora.app.ui.AppState
 class MemoraApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        Prefs.init(this)
-        com.memora.app.core.Crash.install(this)
-        AppState.bind(this)
-        SyncService.channel(this)
-        TaskEngine.recoverInterrupted(this)
+        // 启动阶段任何一步失败都不能让应用直接打不开
+        runCatching { Prefs.init(this) }
+        runCatching { com.memora.app.core.Crash.install(this) }
+        runCatching { SyncService.channel(this) }
+        runCatching { AppState.bind(this) }
+        if (!com.memora.app.core.Crash.inSafeMode(this)) {
+            runCatching { TaskEngine.recoverInterrupted(this) }
+        }
     }
 }

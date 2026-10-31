@@ -551,10 +551,11 @@ fun SearchScreen(onOpen: (Route) -> Unit, onBack: () -> Unit) {
     var commentHits by remember { mutableStateOf<List<com.memora.app.core.Comment>>(emptyList()) }
     var searched by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
+    var range by remember { mutableStateOf("all") }
     val recent by Prefs.recentSearch.collectAsState()
     val keyword = q.trim()
 
-    LaunchedEffect(keyword, account?.id) {
+    LaunchedEffect(keyword, account?.id, range) {
         val acc = account ?: return@LaunchedEffect
         if (keyword.isBlank()) {
             results = emptyList(); friendHits = emptyList(); commentHits = emptyList(); searched = false
@@ -562,11 +563,20 @@ fun SearchScreen(onOpen: (Route) -> Unit, onBack: () -> Unit) {
         }
         loading = true
         delay(220)
+        val now = System.currentTimeMillis()
+        val from = when (range) {
+            "1y" -> now - 365L * 24 * 3600 * 1000
+            "3y" -> now - 3 * 365L * 24 * 3600 * 1000
+            "old" -> null
+            else -> null
+        }
+        val to = when (range) {
+            "old" -> now - 3 * 365L * 24 * 3600 * 1000
+            else -> null
+        }
         withContext(Dispatchers.IO) {
             val db = Db.get(context)
-            // 先走全文索引，命中不足再退回逐列匹配
-            val indexed = db.searchIndexed(acc.id, keyword)
-            results = if (indexed.isNotEmpty()) indexed else db.search(acc.id, keyword)
+            results = db.search(acc.id, keyword, from = from, to = to)
             friendHits = db.searchFriends(acc.id, keyword)
             commentHits = db.searchComments(acc.id, keyword)
         }
@@ -586,7 +596,14 @@ fun SearchScreen(onOpen: (Route) -> Unit, onBack: () -> Unit) {
                 singleLine = true,
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            listOf("all" to "全部", "1y" to "近一年", "3y" to "近三年", "old" to "更早").forEach { (k, v) ->
+                Chip(v, range == k) { range = k }
+            }
+        }
         if (keyword.isBlank()) {
             if (recent.isNotEmpty()) {
                 Row(

@@ -66,7 +66,8 @@ class SyncService : Service() {
         val taskId = intent?.getStringExtra(EXTRA_TASK).orEmpty()
         val label = intent?.getStringExtra(EXTRA_LABEL).orEmpty().ifBlank { "档案同步" }
         val notification = build(label)
-        startForeground(NOTIFY_ID, notification)
+        val started = runCatching { startForeground(NOTIFY_ID, notification) }.isSuccess
+        if (!started) { stopSelf(); return START_NOT_STICKY }
         if (taskId.isNotBlank()) {
             val nm = getSystemService(NotificationManager::class.java)
             // 进度文案由引擎写入，这里做一次轻量同步

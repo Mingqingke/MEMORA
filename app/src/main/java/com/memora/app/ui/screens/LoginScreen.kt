@@ -126,6 +126,7 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
         scope.launch {
             try {
             SessionStore.save(context, cookie, uin, "")
+            status = "正在连接空间"
             val boot = withContext(Dispatchers.IO) { runCatching { QzoneAuth.bootstrap(context, uin, cookie) }.getOrNull() }
             if (boot == null) {
                 stage = Stage.FAIL
@@ -138,11 +139,15 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
                 if (boot.session.nickname.isNotBlank()) {
                     SessionStore.saveNickname(context, boot.session.nickname, boot.session.avatar)
                 }
-                AppState.syncAccount(context)
+                status = "正在保存账号"
+                runCatching { AppState.syncAccount(context) }
+                    .onFailure { com.memora.app.core.Crash.record(context, it) }
                 uinPreview = uin
                 stage = Stage.DONE
                 status = "连接成功"
+                status = "正在检查来源"
                 runCatching { withContext(Dispatchers.IO) { Probe.all(context, "qq:" + uin) } }
+                status = "正在读取档案"
                 runCatching { withContext(Dispatchers.IO) { AppState.reload(context) } }
                 onDone()
             } else {
@@ -152,7 +157,7 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
             busy = false
             } catch (t: Throwable) {
                 stage = Stage.FAIL
-                status = "连接时出错 " + (t.javaClass.simpleName)
+                status = "连接时出错 " + (t.message ?: t.javaClass.simpleName).take(60)
                 busy = false
             }
         }

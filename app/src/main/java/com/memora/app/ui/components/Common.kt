@@ -142,7 +142,7 @@ fun BoxCard(
         colors = CardDefaults.defaultColors(color = cardColor()),
         pressFeedbackType = pressFeedback(interactive),
         showIndication = onClick != null,
-        onClick = onClick ?: {},
+        onClick = onClick,
     ) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp), content = content)
     }
@@ -649,7 +649,7 @@ fun BigRing(
             }
             if (showPenguin && penguin != null) {
                 // 位图在 Canvas 上按比例绘制并着色
-                val side = d * 0.56f
+                val side = d * 0.50f
                 val src = androidx.compose.ui.geometry.Size(penguin.width.toFloat(), penguin.height.toFloat())
                 val dst = androidx.compose.ui.geometry.Rect(
                     offset = Offset((size.width - side) / 2f, (size.height - side) / 2f),

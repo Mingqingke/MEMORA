@@ -32,7 +32,9 @@ object AppState {
         ctx = context.applicationContext
         val saved = Prefs.activeAccount.value
         if (saved.isNotBlank()) {
-            account.value = Db.get(context.applicationContext).account(saved)
+            runCatching { Db.get(context.applicationContext).account(saved) }
+                .getOrNull()
+                ?.let { account.value = it }
         }
     }
 
@@ -69,25 +71,29 @@ object AppState {
         return t
     }
 
-    /** 用当前会话创建或更新账号，返回账号 ID。 */
-    fun syncAccount(context: Context): String? {
+    /** 用当前会话创建或更新账号；数据库异常也不会让界面停在"未连接"。 */
+    fun syncAccount(context: Context, uinOverride: String? = null): String? {
         val app = context.applicationContext
-        val uin = SessionStore.uin(app)
-        if (uin.isBlank() || !SessionStore.has(app)) return null
-        val db = Db.get(app)
+        val uin = uinOverride?.takeIf { it.isNotBlank() } ?: SessionStore.uin(app)
+        if (uin.isBlank()) return null
         val id = "qq:$uin"
-        val existing = db.account(id)
-        db.upsertAccount(
-            Account(
+        val nick = SessionStore.nickname(app)
+        val avatar = SessionStore.avatar(app)
+        var acc = Account(id, uin, nick, avatar, System.currentTimeMillis(), 0)
+        runCatching {
+            val db = Db.get(app)
+            val existing = db.account(id)
+            acc = Account(
                 id = id, uin = uin,
-                nickname = SessionStore.nickname(app).ifBlank { existing?.nickname ?: "" },
-                avatar = SessionStore.avatar(app).ifBlank { existing?.avatar ?: "" },
+                nickname = nick.ifBlank { existing?.nickname ?: "" },
+                avatar = avatar.ifBlank { existing?.avatar ?: "" },
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
                 lastSyncAt = existing?.lastSyncAt ?: 0,
             )
-        )
+            db.upsertAccount(acc)
+        }.onFailure { com.memora.app.core.Crash.record(app, it) }
         Prefs.setActiveAccount(id)
-        account.value = db.account(id)
+        account.value = acc
         return id
     }
 
