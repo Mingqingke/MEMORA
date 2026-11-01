@@ -94,7 +94,7 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
             }
         }
         load()
-        while (active != null) {
+        while (TaskEngine.runningIds.value.isNotEmpty()) {
             delay(1200)
             load()
         }
@@ -109,10 +109,11 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
     val heroH = if (wide) 250.dp else 216.dp
 
     val connected = account != null
+    val snapshot = run
     val fraction: Float? = when {
-        run == null -> null
-        run!!.task.status == TaskStatus.COMPLETED -> 1f
-        run!!.stat.fetched > 0 -> (run!!.processed.toFloat() / run!!.stat.fetched).coerceIn(0f, 1f)
+        snapshot == null -> null
+        snapshot.task.status == TaskStatus.COMPLETED -> 1f
+        snapshot.stat.fetched > 0 -> (snapshot.processed.toFloat() / snapshot.stat.fetched).coerceIn(0f, 1f)
         else -> null
     }
     val ringTone = when {

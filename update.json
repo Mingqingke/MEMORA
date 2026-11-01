@@ -1,13 +1,12 @@
 {
-  "versionCode": 17,
-  "versionName": "1.2.23",
+  "versionCode": 20,
+  "versionName": "1.2.26",
   "notes": [
-    "修复全屏提示条挡住点击",
-    "登录状态不再因解密失败丢失",
-    "数据库自检与自动重建",
-    "恢复页面转场"
+    "修复建表语句语法错误导致的所有崩溃",
+    "归档任务创建增加兜底",
+    "建库失败不再让应用打不开"
   ],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.23/MEMORA-v1.2.23-release.apk",
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.26/MEMORA-v1.2.26.apk",
   "size": 12032994,
-  "sha256": "8aa1682cc73c62e576e42d997668a0728861ab930e591166803622234a11d1bf"
+  "sha256": "63671255b055266d4cabb0e601072c9aeb3a13721d908c000f44332b48e426c9"
 }

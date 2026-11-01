@@ -72,6 +72,7 @@ fun MediaCenterScreen(onBack: () -> Unit) {
     LaunchedEffect(account?.id, filter) {
         val acc = account ?: return@LaunchedEffect
         rows = withContext(Dispatchers.IO) {
+            runCatching {
             val db = Db.get(context)
             when (filter) {
                 "image" -> db.mediaRows(acc.id, 0, false, 300, 0)
@@ -79,6 +80,7 @@ fun MediaCenterScreen(onBack: () -> Unit) {
                 "broken" -> db.mediaRows(acc.id, null, true, 300, 0)
                 else -> db.mediaRows(acc.id, null, false, 300, 0)
             }
+            }.getOrDefault(emptyList())
         }
     }
 

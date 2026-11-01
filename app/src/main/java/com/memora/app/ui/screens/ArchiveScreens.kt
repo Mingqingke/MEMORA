@@ -90,12 +90,15 @@ fun ArchiveScreen(onOpen: (Route) -> Unit) {
         val acc = account ?: return@LaunchedEffect
         loading = true
         list = withContext(Dispatchers.IO) {
-            Db.get(context).moments(
-                acc.id, year = year, state = state.ifBlank { null },
-                limit = 300, source = if (source == "all") null else source,
-            )
+            runCatching {
+                Db.get(context).moments(
+                    acc.id, year = year, state = state.ifBlank { null },
+                    limit = 300, source = if (source == "all") null else source,
+                )
+            }.getOrDefault(emptyList())
         }
         withContext(Dispatchers.IO) {
+            runCatching {
             val db = Db.get(context)
             val names = HashMap<String, String>()
             val avatars = HashMap<String, String>()
@@ -106,6 +109,7 @@ fun ArchiveScreen(onOpen: (Route) -> Unit) {
             }
             nameMap = names
             avatarMap = avatars
+            }
         }
         loading = false
     }

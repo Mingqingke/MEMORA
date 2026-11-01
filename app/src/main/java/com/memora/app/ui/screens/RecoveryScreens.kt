@@ -326,7 +326,7 @@ fun TasksScreen(onOpen: (Route) -> Unit, onBack: () -> Unit) {
                 RunSummary(t, db.stat(t.id), db.mediaTally(acc.id, t.createdAt, t.updatedAt + 1))
             }
         }
-        while (running.isNotEmpty()) {
+        while (TaskEngine.runningIds.value.isNotEmpty()) {
             kotlinx.coroutines.delay(1500)
             runs = withContext(Dispatchers.IO) {
                 val db = Db.get(context)
@@ -391,7 +391,7 @@ fun TaskDetailScreen(taskId: String, onBack: () -> Unit) {
             }
         }
         load()
-        while (running.contains(taskId)) {
+        while (TaskEngine.runningIds.value.contains(taskId)) {
             kotlinx.coroutines.delay(1200)
             load()
         }

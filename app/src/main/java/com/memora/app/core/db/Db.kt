@@ -42,24 +42,40 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             instance ?: run {
                 val app = context.applicationContext
                 var db = Db(app)
-                // 数据库打不开（旧版本残留、FTS 模块缺失、文件损坏）时重建一次，避免整页闪退
                 fun coreOk(d: Db): Boolean = runCatching {
-                    d.readableDatabase.rawQuery("SELECT COUNT(*) FROM accounts", null).use { it.moveToFirst() }
+                    d.readableDatabase.rawQuery(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'", null
+                    ).use { it.moveToFirst() }
                 }.getOrDefault(false)
+                fun park() {
+                    // 只改名保留，绝不直接删除用户档案
+                    val f = app.getDatabasePath(NAME)
+                    val stamp = System.currentTimeMillis()
+                    runCatching { if (f.exists()) f.renameTo(java.io.File(f.path + ".bak-$stamp")) }
+                    runCatching { java.io.File(f.path + "-wal").takeIf { it.exists() }?.renameTo(java.io.File(f.path + "-wal.bak-$stamp")) }
+                    runCatching { java.io.File(f.path + "-shm").takeIf { it.exists() }?.renameTo(java.io.File(f.path + "-shm.bak-$stamp")) }
+                }
                 try {
                     db.writableDatabase
                     if (!coreOk(db)) {
-                        Log.e("MemoraDb", "core tables missing, rebuilding")
+                        // 先尝试原地补表，补不上才换一个新库（旧库留档）
                         runCatching { db.close() }
-                        runCatching { app.deleteDatabase(NAME) }
                         db = Db(app)
                         db.writableDatabase
+                        if (!coreOk(db)) {
+                            Log.e("MemoraDb", "core table missing after repair, parking old db")
+                            runCatching { db.close() }
+                            park()
+                            db = Db(app)
+                            db.writableDatabase
+                        }
                     }
                 } catch (t: Throwable) {
-                    Log.e("MemoraDb", "open failed, rebuilding", t)
+                    Log.e("MemoraDb", "open failed, parking old db", t)
                     runCatching { db.close() }
-                    runCatching { app.deleteDatabase(NAME) }
+                    park()
                     db = Db(app)
+                    runCatching { db.writableDatabase }
                 }
                 db.also { instance = it }
             }
@@ -67,12 +83,25 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
 
         fun momentKey(accountId: String, tid: String) = "$accountId:$tid"
 
+        /** 关掉当前实例，下次 get 会重新打开并自检（不删数据）。 */
+        fun invalidate() {
+            synchronized(this) {
+                runCatching { instance?.close() }
+                instance = null
+            }
+        }
+
         /** 结构损坏时的兜底：关库、删文件、重建。调用方必须先拿到用户确认。 */
         fun rebuild(context: Context) {
             synchronized(this) {
                 runCatching { instance?.close() }
                 instance = null
-                runCatching { context.applicationContext.deleteDatabase(NAME) }
+                val app = context.applicationContext
+                val f = app.getDatabasePath(NAME)
+                val stamp = System.currentTimeMillis()
+                runCatching { if (f.exists()) f.renameTo(java.io.File(f.path + ".rebuild-$stamp")) }
+                runCatching { java.io.File(f.path + "-wal").takeIf { it.exists() }?.delete() }
+                runCatching { java.io.File(f.path + "-shm").takeIf { it.exists() }?.delete() }
             }
         }
     }
@@ -87,7 +116,8 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        createSchema(db)
+        // 任何一条建表语句失败都不应该让数据库打不开、应用不可用
+        runCatching { createSchema(db) }.onFailure { Log.e("MemoraDb", "onCreate failed", it) }
     }
 
     /** 每次打开都补齐缺失的表与列：旧版本可能因为语句失败留下半套结构。 */
@@ -271,7 +301,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             """.trimIndent()
         )
         db.execSQL(
-            "CREATE TABLE IF NOT EXISTS IF NOT EXISTS search_index(ref TEXT PRIMARY KEY, text TEXT NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS search_index(ref TEXT PRIMARY KEY, text TEXT NOT NULL)"
         )
         db.execSQL(
             """
@@ -298,9 +328,11 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         // 档案只增不删：按列增量迁移，不清空、不重建
         if (oldVersion < 2) {
             runCatching { ensureColumn(db, "moment_media", "queuedAt", "INTEGER NOT NULL DEFAULT 0") }
+                .onFailure { Log.w("MemoraDb", "upgrade v2 failed", it) }
         }
         if (oldVersion < 3) {
             runCatching { ensureColumn(db, "friends", "addedAt", "INTEGER NOT NULL DEFAULT 0") }
+                .onFailure { Log.w("MemoraDb", "upgrade v3 failed", it) }
         }
         if (oldVersion < 5) {
             runCatching { db.execSQL("DROP TABLE IF EXISTS search_fts") }

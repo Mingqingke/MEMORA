@@ -70,7 +70,9 @@ fun PeopleScreen(onOpen: (Route) -> Unit) {
 
     LaunchedEffect(account?.id, filter, reload, AppState.tasks.collectAsState().value.firstOrNull()?.updatedAt) {
         val acc = account ?: return@LaunchedEffect
-        list = withContext(Dispatchers.IO) { Db.get(context).friends(acc.id, filter) }
+        list = withContext(Dispatchers.IO) {
+            runCatching { Db.get(context).friends(acc.id, filter) }.getOrDefault(emptyList())
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -166,10 +168,12 @@ fun FriendDetailScreen(uin: String, onBack: () -> Unit) {
         val acc = account ?: return@LaunchedEffect
         val db = Db.get(context)
         withContext(Dispatchers.IO) {
-            friend = db.friend(acc.id, uin)
-            changes = db.friendChanges(acc.id, uin)
-            snaps = db.snapshots(acc.id)
-            acts = db.activitiesByActor(acc.id, uin)
+            runCatching {
+                friend = db.friend(acc.id, uin)
+                changes = db.friendChanges(acc.id, uin)
+                snaps = db.snapshots(acc.id)
+                acts = db.activitiesByActor(acc.id, uin)
+            }
         }
         friend?.let { tags = it.tags; note = it.note }
     }

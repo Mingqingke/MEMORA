@@ -730,7 +730,10 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
     var sourceText by remember { mutableStateOf(Prefs.updateSource.value) }
     var rebuildConfirm by remember { mutableStateOf(false) }
     val scope2 = rememberCoroutineScope()
-    val crash = remember(reload) { com.memora.app.core.Crash.last(context) }
+    var crash by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(reload) {
+        crash = withContext(Dispatchers.IO) { com.memora.app.core.Crash.last(context) }
+    }
     val icon = com.memora.app.ui.components.rememberDrawableBitmap(com.memora.app.R.drawable.ic_launcher_fg)
     val avatar = com.memora.app.ui.components.rememberDrawableBitmap(com.memora.app.R.drawable.author_avatar)
 
@@ -901,9 +904,10 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
                             }
                         }
                         Spacer(Modifier.height(10.dp))
-                        if (!crash.isNullOrBlank()) {
+                        val crashText = crash
+                        if (!crashText.isNullOrBlank()) {
                             Text("最近一次崩溃", fontSize = 11.sp, color = c.secondary)
-                            Text(crash.take(400), fontSize = 9.5.sp, color = c.danger, lineHeight = 14.sp, maxLines = 8)
+                            Text(crashText.take(400), fontSize = 9.5.sp, color = c.danger, lineHeight = 14.sp, maxLines = 8)
                             Spacer(Modifier.height(6.dp))
                             GhostButton("清除崩溃记录") {
                                 com.memora.app.core.Crash.clear(context)

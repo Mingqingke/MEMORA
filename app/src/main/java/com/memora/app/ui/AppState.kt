@@ -42,7 +42,7 @@ object AppState {
         val app = context.applicationContext
         loading.value = true
         try {
-            val db = Db.get(app)
+            val db = runCatching { Db.get(app) }.getOrNull() ?: return
             val acc = account.value ?: Prefs.activeAccount.value.takeIf { it.isNotBlank() }?.let { db.account(it) }
             account.value = acc
             if (acc != null) {
@@ -99,6 +99,8 @@ object AppState {
 
     fun startTask(context: Context, type: String, label: String): String? {
         val acc = account.value ?: return null
+        // 同类型任务已在跑就直接返回，避免重复请求与重复写入
+        tasks.value.firstOrNull { it.type == type && it.status.active }?.let { return it.id }
         val db = Db.get(context.applicationContext)
         val id = "$type-${System.currentTimeMillis()}"
         db.createTask(
