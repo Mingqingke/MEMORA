@@ -1,5 +1,7 @@
 package com.memora.app.core.source
 
+import kotlinx.coroutines.async
+
 import com.memora.app.core.SourceStatus
 import com.memora.app.core.net.QzoneApi
 import com.memora.app.core.net.QzoneContext
@@ -53,6 +55,54 @@ object CurrentFeedsSource : ArchiveSource {
  * 历史互动流。res_type 之间不是包含关系：实测存在 201 / 83 条两种结果，
  * 因此每一路独立游标、独立状态、独立解析，最后按内容 ID 合并。
  */
+/**
+ * 自研聚合来源：一次取三条互不相同的链路，本地按 tid 合并去重。
+ * 单条链路失效不影响整体，比照搬外部项目的单接口更耐用。
+ */
+object DiscoverSource : ArchiveSource {
+    override val id = "discover"
+    override val name = "综合发现"
+    override val purpose = "同时走与我相关 留言板 互动流 合并去重 任何一条可用就有结果"
+    override val streams = listOf(StreamSpec("merge", "综合流", "多来源并发 本地合并"))
+    override val verified = false
+
+    override suspend fun fetch(ctx: QzoneContext, stream: String, cursor: String?, pageSize: Int): FetchedPage {
+        val page = cursor?.toIntOrNull() ?: 0
+        val offset = page * 10
+        val merged = LinkedHashMap<String, MomentRec>()
+        var okCount = 0
+        var lastStatus = SourceStatus.EMPTY
+        kotlinx.coroutines.coroutineScope {
+            val pav = async { runCatching { QzoneApi.pavAll(ctx, offset, 10) }.getOrNull() }
+            val gb = async { runCatching { QzoneApi.guestbook(ctx, offset, 10) }.getOrNull() }
+            val feed = async { runCatching { QzoneApi.feedStream(ctx, 1, offset, page + 1) }.getOrNull() }
+            val bodies = listOf(
+                pav.await()?.takeIf { it.ok }?.body?.let { QzoneApi.parsePavAll(it, offset, pageSize) },
+                gb.await()?.takeIf { it.ok }?.body?.let { QzoneApi.parseGuestbook(it, offset, pageSize) },
+                feed.await()?.takeIf { it.ok }?.body?.let { QzoneApi.parseFeedStream(it, 1, offset, pageSize) },
+            )
+            bodies.filterNotNull().forEach { parsed ->
+                if (parsed.items.isNotEmpty()) okCount++
+                lastStatus = parsed.status
+                parsed.items.forEach { rec -> merged.putIfAbsent(rec.tid, rec) }
+            }
+        }
+        val items = merged.values.toList()
+        return FetchedPage(
+            status = when {
+                items.isNotEmpty() -> SourceStatus.AVAILABLE
+                okCount > 0 -> SourceStatus.EMPTY
+                else -> lastStatus
+            },
+            detail = if (items.isEmpty()) "三条链路都没有数据" else "${okCount} 条链路合并 ${items.size} 条",
+            moments = items,
+            nextCursor = if (items.isNotEmpty()) (page + 1).toString() else null,
+            hasMore = items.isNotEmpty(),
+            rawCount = items.size,
+        )
+    }
+}
+
 /** 「与我相关」：说说删了，别人的评论/点赞记录还留着，是找回已删除说说的主来源。 */
 object RelatedFeedSource : ArchiveSource {
     override val id = "related"

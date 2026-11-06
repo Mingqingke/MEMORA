@@ -719,7 +719,6 @@ fun BigRing(
     showCheck: Boolean = false,
     showPenguin: Boolean = true,
 ) {
-    val penguin = rememberDrawableBitmap(com.memora.app.R.drawable.qq_penguin)
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val d = size.minDimension
@@ -755,24 +754,48 @@ fun BigRing(
                     ),
                 )
             }
-            if (showPenguin && penguin != null) {
-                // 位图在 Canvas 上按比例绘制并着色
-                val side = d * 0.50f
-                val src = androidx.compose.ui.geometry.Size(penguin.width.toFloat(), penguin.height.toFloat())
-                val dst = androidx.compose.ui.geometry.Rect(
-                    offset = Offset((size.width - side) / 2f, (size.height - side) / 2f),
-                    size = androidx.compose.ui.geometry.Size(side, side),
+            if (showPenguin) {
+                // 矢量企鹅：左右严格镜像，底边贴住圆环内沿，不用位图
+                val box = d * 0.40f
+                val hh = d * 0.42f
+                val cx = size.width / 2f
+                val bottom = size.height / 2f + radius - stroke * 0.5f - d * 0.015f
+                val top = bottom - hh
+                fun px(v: Float) = cx + (v - 0.5f) * box
+                fun py(v: Float) = top + v * hh
+
+                // 两脚先画，压在身体下面
+                drawOval(
+                    color = tone,
+                    topLeft = Offset(px(0.18f), py(0.86f)),
+                    size = androidx.compose.ui.geometry.Size(box * 0.28f, hh * 0.13f),
                 )
-                rotate(degrees = -14f, pivot = Offset(size.width / 2f, size.height / 2f)) {
-                    drawImage(
-                        image = penguin,
-                        srcSize = androidx.compose.ui.unit.IntSize(penguin.width, penguin.height),
-                        dstOffset = androidx.compose.ui.unit.IntOffset(dst.left.toInt(), dst.top.toInt()),
-                        dstSize = androidx.compose.ui.unit.IntSize(side.toInt(), side.toInt()),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tone),
-                        filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
-                    )
+                drawOval(
+                    color = tone,
+                    topLeft = Offset(px(0.54f), py(0.86f)),
+                    size = androidx.compose.ui.geometry.Size(box * 0.28f, hh * 0.13f),
+                )
+                // 身体：单一对称轮廓，头在顶端收窄
+                val body = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(px(0.5f), py(0.04f))
+                    cubicTo(px(0.72f), py(0.06f), px(0.84f), py(0.30f), px(0.80f), py(0.58f))
+                    cubicTo(px(0.77f), py(0.80f), px(0.66f), py(0.92f), px(0.5f), py(0.92f))
+                    cubicTo(px(0.34f), py(0.92f), px(0.23f), py(0.80f), px(0.20f), py(0.58f))
+                    cubicTo(px(0.16f), py(0.30f), px(0.28f), py(0.06f), px(0.5f), py(0.04f))
+                    close()
                 }
+                drawPath(body, tone)
+                // 两翅，左右镜像
+                drawOval(
+                    color = tone,
+                    topLeft = Offset(px(0.08f), py(0.44f)),
+                    size = androidx.compose.ui.geometry.Size(box * 0.16f, hh * 0.30f),
+                )
+                drawOval(
+                    color = tone,
+                    topLeft = Offset(px(0.76f), py(0.44f)),
+                    size = androidx.compose.ui.geometry.Size(box * 0.16f, hh * 0.30f),
+                )
             }
         }
     }

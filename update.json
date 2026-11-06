@@ -1,10 +1,10 @@
 {
-  "versionCode": 29,
-  "versionName": "1.2.35",
+  "versionCode": 30,
+  "versionName": "1.2.36",
   "notes": [
     "修复已知问题"
   ],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.35/MEMORA-v1.2.35.apk",
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.36/MEMORA-v1.2.36.apk",
   "size": 12049378,
-  "sha256": "1b6ba36510abf66cff7199d3948c24c360c86cf07943cd32527080185ac85f8b"
+  "sha256": "f5a57c42b6ce1998abf7e0cce9f54dd2338f10bb793f6e2a2e6169dd1648ec23"
 }

@@ -47,6 +47,11 @@ import com.memora.app.core.task.TaskEngine
 import com.memora.app.ui.AppState
 import com.memora.app.ui.Route
 import com.memora.app.ui.components.Avatar
+import com.memora.app.ui.components.BoxCard
+import top.yukonga.miuix.kmp.icon.extended.Folder
+import top.yukonga.miuix.kmp.icon.extended.Search
+import top.yukonga.miuix.kmp.icon.extended.Tasks
+import top.yukonga.miuix.kmp.icon.extended.Theme
 import com.memora.app.ui.components.BigRing
 import com.memora.app.ui.components.EntryCard
 import com.memora.app.ui.components.GhostButton
@@ -242,7 +247,7 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
                             tone = ringTone,
                             showCheck = connected,
                             showPenguin = !connected,
-                            modifier = Modifier.size(150.dp).align(Alignment.BottomEnd).offset(x = 34.dp, y = 38.dp),
+                            modifier = Modifier.size(148.dp).align(Alignment.BottomEnd).offset(x = 22.dp, y = 26.dp),
                         )
                     }
                 }
@@ -268,22 +273,49 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-            EntryCard("我的档案", if (stats.moments > 0) "${stats.moments} 条内容 · 按年份浏览" else "归档后在这里阅读") {
-                onOpen(Route.Archive)
+            Spacer(Modifier.height(12.dp))
+            BoxCard {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    QuickAction("档案", MiuixIcons.Folder, Modifier.weight(1f)) {
+                        onOpen(Route.Archive)
+                    }
+                    QuickAction("照片", MiuixIcons.Theme, Modifier.weight(1f)) {
+                        onOpen(Route.Media)
+                    }
+                    QuickAction("历史", MiuixIcons.Search, Modifier.weight(1f)) {
+                        onOpen(Route.Recovery)
+                    }
+                    QuickAction("记录", MiuixIcons.Tasks, Modifier.weight(1f)) {
+                        onOpen(Route.Tasks)
+                    }
+                }
             }
-            Spacer(Modifier.height(10.dp))
-            EntryCard("照片与视频", "本机文件 · 按时间浏览") { onOpen(Route.Media) }
-            Spacer(Modifier.height(10.dp))
-            EntryCard("查找历史内容", "更早的记录 · 互动残留") { onOpen(Route.Recovery) }
-            Spacer(Modifier.height(10.dp))
-            EntryCard("归档记录", "${tasks.size} 次归档 · 对比与重试") { onOpen(Route.Tasks) }
             if (!connected) {
-                Spacer(Modifier.height(10.dp))
-                EntryCard("导入旧档案", "以前导出的 JSON / ZIP") { onOpen(Route.ImportArchive) }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "登录后可以导入旧档案",
+                    fontSize = 11.sp, color = c.secondary,
+                    modifier = Modifier.clickable { onOpen(Route.ImportArchive) }.padding(vertical = 6.dp),
+                )
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun QuickAction(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = LocalMemora.current
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(38.dp).clip(CircleShape).background(c.ink.copy(alpha = 0.05f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, Modifier.size(18.dp), tint = c.ink) }
+        Spacer(Modifier.height(7.dp))
+        Text(label, fontSize = 11.5.sp, color = c.ink)
     }
 }
 

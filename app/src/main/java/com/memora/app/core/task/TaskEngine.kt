@@ -133,24 +133,16 @@ object TaskEngine {
         }
         // 查找更多历史：只走历史路径，不动当前列表
         "history" -> buildList {
-            add(PlanStep("related", "pav_all", pages = 400))
-            add(PlanStep("guestbook", "msgb", pages = 400))
-            add(PlanStep("interaction", "res_type_1", pages = 400))
-            add(PlanStep("interaction", "res_type_2", pages = 400))
+            add(PlanStep("discover", "merge", pages = 400))
             add(PlanStep("legacy", "feeds_html", pages = 400))
             if (Prefs.includeMoments.value) add(PlanStep("current", "msglist", pages = 400))
         }
         // 深度归档：把分页上限拉满，专门用来翻更早的年份
         "deep" -> buildList {
             if (Prefs.includeFriends.value) add(PlanStep("friend", "main"))
-            add(PlanStep("related", "pav_all", pages = 400))
-            add(PlanStep("guestbook", "msgb", pages = 400))
+            add(PlanStep("discover", "merge", pages = 400))
             if (Prefs.includeMoments.value) add(PlanStep("current", "msglist", pages = 400))
-            if (Prefs.includeHistory.value) {
-                add(PlanStep("interaction", "res_type_1", pages = 400))
-                add(PlanStep("interaction", "res_type_2", pages = 400))
-                add(PlanStep("legacy", "feeds_html", pages = 400))
-            }
+            if (Prefs.includeHistory.value) add(PlanStep("legacy", "feeds_html", pages = 400))
             if (Prefs.includeAlbums.value) add(PlanStep("album", "albums"))
         }
         "full" -> buildList {
