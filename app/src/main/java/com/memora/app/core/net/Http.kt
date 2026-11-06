@@ -37,8 +37,16 @@ object Net {
             .build()
     }
 
-    fun get(url: String, cookie: String, referer: String = "https://user.qzone.qq.com/"): HttpResult {
+    fun get(
+        url: String,
+        cookie: String,
+        referer: String = "https://user.qzone.qq.com/",
+        timeoutSeconds: Int = 0,
+    ): HttpResult {
         val started = System.currentTimeMillis()
+        val callClient = if (timeoutSeconds > 0) {
+            client.newBuilder().callTimeout(timeoutSeconds.toLong(), TimeUnit.SECONDS).build()
+        } else client
         val builder = Request.Builder()
             .url(url)
             .header("User-Agent", UA)
@@ -47,7 +55,7 @@ object Net {
             .header("Referer", referer)
         if (cookie.isNotBlank()) builder.header("Cookie", cookie)
         return try {
-            client.newCall(builder.build()).execute().use { resp ->
+            callClient.newCall(builder.build()).execute().use { resp ->
                 val text = resp.body.string()
                 HttpResult(
                     code = resp.code, body = text,

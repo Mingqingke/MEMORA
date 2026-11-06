@@ -671,6 +671,14 @@ fun BigRing(
     showPenguin: Boolean = true,
 ) {
     val penguin = rememberDrawableBitmap(com.memora.app.R.drawable.qq_penguin)
+    val ringTarget = fraction ?: 0f
+    val animatedFraction by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = ringTarget,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = 0.86f, stiffness = 420f,
+        ),
+        label = "ring",
+    )
     androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val ringSize = maxWidth
         Canvas(Modifier.fillMaxSize()) {
@@ -699,7 +707,7 @@ fun BigRing(
             }
             val sweep = when {
                 fraction == null -> 96f
-                else -> (360f * fraction).coerceAtLeast(14f)
+                else -> (360f * animatedFraction).coerceAtLeast(14f)
             }
             drawArc(
                 color = tone,

@@ -213,6 +213,9 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
                         WebView(ctx).apply {
                             setBackgroundColor(android.graphics.Color.WHITE)
                             settings.javaScriptEnabled = true
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = false
+                            settings.saveFormData = false
                             settings.domStorageEnabled = true
                             settings.databaseEnabled = true
                             settings.loadWithOverviewMode = true

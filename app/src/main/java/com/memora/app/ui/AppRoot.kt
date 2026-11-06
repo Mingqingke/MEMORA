@@ -188,9 +188,13 @@ fun MemoraRoot() {
         withContext(Dispatchers.IO) { runCatching { TaskEngine.recoverInterrupted(context) } }
         runCatching { AppState.reload(context) }
         if (Prefs.autoCheckUpdate.value && !com.memora.app.core.Crash.inSafeMode(context)) {
-            val r = runCatching { withContext(Dispatchers.IO) { Updater.check(context) } }.getOrNull()
-            if (r is UpdateCheck.Available && r.info.versionCode != Prefs.ignoredVersion.value) {
-                update = r.info
+            // 启动先查一次，之后每 15 分钟在前台复查，避免长时间挂着收不到更新
+            while (true) {
+                val r = runCatching { withContext(Dispatchers.IO) { Updater.check(context) } }.getOrNull()
+                if (r is UpdateCheck.Available && r.info.versionCode != Prefs.ignoredVersion.value) {
+                    update = r.info
+                }
+                kotlinx.coroutines.delay(15 * 60 * 1000L)
             }
         }
     }

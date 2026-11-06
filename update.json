@@ -1,8 +1,8 @@
 {
-  "versionCode": 34,
-  "versionName": "1.2.40",
-  "notes": ["修复已知问题"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.40/MEMORA-v1.2.40.apk",
+  "versionCode": 35,
+  "versionName": "1.2.41",
+  "notes": ["适配 Android 17", "更新检查更快"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.41/MEMORA-v1.2.41.apk",
   "size": 12049378,
-  "sha256": "d4b7c47453c4c0f63fdf8b29f2a86810156de448462c8175d6575dbaaa5632ed"
+  "sha256": "82261e9ad48d1b52eb6a2afdeaf8153499ca8f0fba0b51f074f1ff87e373fe30"
 }
