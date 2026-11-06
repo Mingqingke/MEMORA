@@ -1,13 +1,10 @@
 {
-  "versionCode": 27,
-  "versionName": "1.2.33",
+  "versionCode": 28,
+  "versionName": "1.2.34",
   "notes": [
-    "归档页可直接查看本次新增内容",
-    "新增「与我相关」来源，找回已删除说说",
-    "新增留言板来源",
-    "更新界面改版，多源自动检查"
+    "修复已知问题"
   ],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.33/MEMORA-v1.2.33.apk",
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.34/MEMORA-v1.2.34.apk",
   "size": 12049378,
-  "sha256": "f264bc9f0d1c3da063175e116eac8f5e387103b182e2e496d2b45f073c4ad3de"
+  "sha256": "ff4b23d1d1894c5a16ce20e6353b6762d24b26426e00dc15a7e49bf004f668d0"
 }

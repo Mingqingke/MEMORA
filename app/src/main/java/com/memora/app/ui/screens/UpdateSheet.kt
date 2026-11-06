@@ -87,16 +87,24 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
                 }
             }
             if (progress >= 0f) {
-                Spacer(Modifier.height(12.dp))
-                LinearProgressIndicator(
+                Spacer(Modifier.height(14.dp))
+                com.memora.app.ui.components.WaveProgress(
+                    progress = if (progress >= 1f) 1f else progress,
                     modifier = Modifier.fillMaxWidth(),
-                    progress = if (progress >= 1f) null else progress,
+                    height = 12.dp,
                 )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (progress >= 1f) "正在校验" else "下载中 ${(progress * 100).toInt()}%",
-                    fontSize = 11.sp, color = c.secondary,
-                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (progress >= 1f) "正在校验" else "下载中",
+                        fontSize = 11.sp, color = c.secondary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        if (progress >= 1f) "100%" else "${(progress * 100).toInt()}%",
+                        fontSize = 11.sp, color = c.ink, fontWeight = FontWeight.Medium,
+                    )
+                }
             }
             if (message.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))

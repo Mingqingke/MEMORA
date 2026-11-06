@@ -1,5 +1,15 @@
 package com.memora.app.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -404,10 +414,10 @@ fun GhostButton(text: String, onClick: () -> Unit) {
     Box(
         Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(c.accentSoft)
+            .background(c.ink.copy(alpha = 0.06f))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) { Text(text, fontSize = 13.sp, color = c.accent, fontWeight = FontWeight.Medium) }
+    ) { Text(text, fontSize = 13.sp, color = c.ink, fontWeight = FontWeight.Medium) }
 }
 
 fun formatTime(t: Long?): String {
@@ -455,12 +465,108 @@ fun DropRow(
     summary: String = "",
     onSelected: (Int) -> Unit,
 ) {
-    top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
-        items = items,
-        selectedIndex = selectedIndex.coerceIn(0, items.size - 1),
-        title = title,
-        onSelectedIndexChange = onSelected,
+    val c = LocalMemora.current
+    var open by remember { mutableStateOf(false) }
+    val index = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
+    Box(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth()
+                .clickable { open = true }
+                .padding(vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, color = c.ink)
+                if (summary.isNotBlank()) Text(summary, fontSize = 10.5.sp, color = c.secondary)
+            }
+            Text(items.getOrNull(index).orEmpty(), fontSize = 13.sp, color = c.secondary)
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                top.yukonga.miuix.kmp.icon.MiuixIcons.ChevronForward,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = c.secondary,
+            )
+        }
+        if (open) {
+            androidx.compose.ui.window.Popup(
+                onDismissRequest = { open = false },
+                alignment = androidx.compose.ui.Alignment.TopEnd,
+            ) {
+                Card(
+                    cornerRadius = 16.dp,
+                    colors = CardDefaults.defaultColors(color = c.card),
+                ) {
+                    Column(Modifier.width(190.dp).padding(vertical = 6.dp)) {
+                        items.forEachIndexed { i, label ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clickable { open = false; onSelected(i) }
+                                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    label, fontSize = 13.5.sp,
+                                    color = if (i == index) c.ink else c.secondary,
+                                    fontWeight = if (i == index) FontWeight.Medium else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (i == index) Icon(
+                                    top.yukonga.miuix.kmp.icon.MiuixIcons.ChevronForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp), tint = c.ink,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 更新下载用的波浪进度条。 */
+@Composable
+fun WaveProgress(progress: Float, modifier: Modifier = Modifier, height: Dp = 10.dp) {
+    val c = LocalMemora.current
+    val p = progress.coerceIn(0f, 1f)
+    val transition = rememberInfiniteTransition(label = "wave")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = (Math.PI * 2).toFloat(),
+        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing)),
+        label = "phase",
     )
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(height / 2))
+            .background(c.ink.copy(alpha = 0.07f)),
+    ) {
+        val w = size.width
+        val h = size.height
+        if (p <= 0f) return@Canvas
+        val level = h * p
+        val amp = h * 0.22f
+        // 两层波，错开相位，看起来像水面
+        listOf(0f, Math.PI.toFloat()).forEach { offsetPhase ->
+            val path = androidx.compose.ui.graphics.Path()
+            path.moveTo(0f, h)
+            var x = 0f
+            while (x <= w) {
+                val y = h - level + kotlin.math.sin(x / w * 4f * Math.PI.toFloat() + phase + offsetPhase) * amp
+                path.lineTo(x, y)
+                x += 2f
+            }
+            path.lineTo(w, h)
+            path.close()
+            drawPath(
+                path,
+                color = c.ink.copy(alpha = if (offsetPhase == 0f) 0.30f else 0.16f),
+            )
+        }
+    }
 }
 
 enum class AuthVisual { OK, WARN, OFF }
