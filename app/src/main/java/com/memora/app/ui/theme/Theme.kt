@@ -37,11 +37,11 @@ data class MemoraColors(
     val blue: Color,
     val amber: Color,
 ) {
-    // 按钮与强调一律用墨色，不用绿
-    val accent: Color get() = ink
+    // 环、对勾、进度这些状态色保持原绿；只有按钮文字改成墨色
+    val accent: Color get() = green
     val pastel: Color get() = mint
     val pastelInk: Color get() = ink
-    val accentSoft: Color get() = if (dark) Color(0xFF26272A) else Color(0xFFEDEEF1)
+    val accentSoft: Color get() = mint
     val ok: Color get() = green
     val warm: Color get() = amber
     val dangerSoft: Color get() = dangerBg
@@ -54,8 +54,8 @@ val MemoraLight = MemoraColors(
     ink = Color(0xFF0A0A0A),
     secondary = Color(0xFF8A8F98),
     hairline = Color(0xFFECEDF0),
-    mint = Color(0xFFF1F2F4),
-    mintEdge = Color(0xFFE6E8EC),
+    mint = Color(0xFFD8F1DE),
+    mintEdge = Color(0xFFC4E9CE),
     green = Color(0xFF2F9F68),
     danger = Color(0xFFC93B31),
     dangerBg = Color(0xFFF6C7C1),
@@ -71,8 +71,8 @@ val MemoraDark = MemoraColors(
     ink = Color(0xFFF2F2F2),
     secondary = Color(0xFF8E939B),
     hairline = Color(0xFF26292D),
-    mint = Color(0xFF202226),
-    mintEdge = Color(0xFF2B2E33),
+    mint = Color(0xFF162E20),
+    mintEdge = Color(0xFF1E3D2B),
     green = Color(0xFF4CC38A),
     danger = Color(0xFFF07A70),
     dangerBg = Color(0xFF4A211D),
