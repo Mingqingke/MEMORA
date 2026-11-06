@@ -51,6 +51,7 @@ object Updater {
         val sources = sources(context)
         if (sources.isEmpty()) return@withContext UpdateCheck.NotConfigured("没有配置更新源")
         var lastReason = "没有可用的更新源"
+        var best: UpdateInfo? = null
         for (url in sources) {
             val res = runCatching { Net.get(url, "", "https://memora.app/") }.getOrNull()
             if (res == null || !res.ok || res.body.isBlank()) {
@@ -59,13 +60,13 @@ object Updater {
             }
             val info = runCatching { parse(res.body) }.getOrNull()
             if (info == null) { lastReason = "更新信息格式不正确"; continue }
-            if (info.versionCode <= BuildConfig.VERSION_CODE) {
-                return@withContext UpdateCheck.Latest(info.versionName)
-            }
-            Prefs.setLastCheckAt(System.currentTimeMillis())
-            return@withContext UpdateCheck.Available(info)
+            // 多个源可能不同步，取版本号最大的那个，而不是第一个能用的
+            if (best == null || info.versionCode > best.versionCode) best = info
         }
-        UpdateCheck.Failed(lastReason)
+        val info = best ?: return@withContext UpdateCheck.Failed(lastReason)
+        Prefs.setLastCheckAt(System.currentTimeMillis())
+        if (info.versionCode <= BuildConfig.VERSION_CODE) UpdateCheck.Latest(info.versionName)
+        else UpdateCheck.Available(info)
     }
 
     private fun parse(body: String): UpdateInfo {
