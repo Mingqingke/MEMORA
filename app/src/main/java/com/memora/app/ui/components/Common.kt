@@ -134,10 +134,12 @@ fun BoxCard(
     interactive: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val base = Modifier.fillMaxWidth()
-    val m = if (onClick != null) base.clickable(onClick = onClick) else base
+    // 传入的 modifier 必须始终生效（列表动画等依赖它）
+    val m = modifier.fillMaxWidth().then(
+        if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+    )
     Card(
-        modifier = if (onClick != null) m else modifier.then(base),
+        modifier = m,
         cornerRadius = corner.dp,
         colors = CardDefaults.defaultColors(color = cardColor()),
         pressFeedbackType = pressFeedback(interactive),

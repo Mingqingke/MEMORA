@@ -63,11 +63,13 @@ object MediaEngine {
     }
 
     fun download(context: Context, db: Db, item: MediaItem): Boolean {
-        if (item.url.isBlank() || !item.url.startsWith("http")) {
+        val url = item.url.replace("&amp;", "&").trim()
+        if (url.isBlank() || !url.startsWith("http")) {
             db.updateMediaState(item.id, 4)
+            db.log("WARN", "media", "地址无效 ${item.id}")
             return false
         }
-        val ext = item.url.substringBefore('?').substringAfterLast('.', "jpg").take(5)
+        val ext = url.substringBefore('?').substringAfterLast('.', "jpg").take(5)
             .filter { it.isLetterOrDigit() }.ifBlank { "jpg" }
         val target = File(dir(context), "${item.id}.$ext")
         val part = File(dir(context), "${item.id}.part")
@@ -79,13 +81,17 @@ object MediaEngine {
         }
 
         db.updateMediaState(item.id, 1, bytes = existing)
-        val builder = Request.Builder().url(item.url)
+        val builder = Request.Builder().url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) MEMORA/1.0")
             .header("Referer", "https://user.qzone.qq.com/")
+        // 空间图片/视频多数需要会话，否则直接 403
+        val cookie = com.memora.app.core.SessionStore.cookie(context)
+        if (cookie.isNotBlank()) builder.header("Cookie", cookie)
         if (existing > 0) builder.header("Range", "bytes=$existing-")
         val resp = try {
             Net.client.newCall(builder.build()).execute()
         } catch (t: Throwable) {
+            db.log("WARN", "media", "下载失败 ${t.javaClass.simpleName}: ${(t.message ?: "").take(80)}")
             db.updateMediaState(item.id, 3, bytes = existing)
             return false
         }
@@ -96,6 +102,7 @@ object MediaEngine {
                 return true
             }
             if (r.code !in 200..299) {
+                db.log("WARN", "media", "HTTP ${r.code} ${url.take(80)}")
                 db.updateMediaState(item.id, if (r.code == 403 || r.code == 404) 4 else 3, bytes = existing)
                 return false
             }

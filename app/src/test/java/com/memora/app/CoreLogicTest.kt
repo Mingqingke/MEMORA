@@ -259,4 +259,102 @@ class CoreLogicTest {
         assertEquals(64, a.length)
         assertTrue(a != Exporter.sha256("memora".toByteArray()))
     }
+
+    /* -------- 历史互动流：真实结构多样性 -------- */
+
+    @Test
+    fun feed_stream_handles_object_wrapped_list() {
+        val body = """
+            _Callback({"code":0,"subcode":0,"message":"","default":0,
+              "data":{"main":{"feedlist":[
+                {"tid":"7788990011","content":"被删掉的一条","abstime":1690000000,"uin":10001}
+              ]}}});
+        """.trimIndent()
+        val r = QzoneApi.parseFeedStream(body, 1, 0, 20)
+        assertEquals(com.memora.app.core.SourceStatus.AVAILABLE, r.status)
+        assertEquals(1, r.items.size)
+        assertEquals("7788990011", r.items[0].tid)
+        assertEquals("被删掉的一条", r.items[0].content)
+    }
+
+    @Test
+    fun feed_stream_handles_html_chunk_inside_json() {
+        val html = """<li class="feed" data-tid="6655443322"><div class="f-info">旧版残留</div></li>"""
+        val body = """_Callback({"code":0,"data":{"main":{"html":${"'" + "$"}html${"'" + "$"}}}});"""
+            .replace("${"'" + "$"}html${"'" + "$"}", org.json.JSONObject.quote(html))
+        val r = QzoneApi.parseFeedStream(body, 2, 0, 20)
+        assertEquals(com.memora.app.core.SourceStatus.AVAILABLE, r.status)
+        assertEquals("6655443322", r.items[0].tid)
+    }
+
+    @Test
+    fun feed_stream_falls_back_to_body_pairs() {
+        val body = """_Callback({"code":0,"data":{"main":{"x":{"tid":"5544332211","content":"兜底解析到的正文"}}}});"""
+        val r = QzoneApi.parseFeedStream(body, 1, 0, 20)
+        assertEquals(com.memora.app.core.SourceStatus.AVAILABLE, r.status)
+        assertEquals("5544332211", r.items[0].tid)
+        assertEquals("兜底解析到的正文", r.items[0].content)
+    }
+
+    @Test
+    fun msg_list_reads_video_entries() {
+        val body = """
+            _preloadCallback({"code":0,"msglist":[
+              {"tid":"9988776655","uin":10001,"content":"带视频","created_time":1700000000,
+               "video":[{"url1":"http://v/cover.jpg","url3":"http://v/clip.mp4"}]}
+            ]});
+        """.trimIndent()
+        val r = QzoneApi.parseMsgList(body, 0, 20)
+        assertEquals(1, r.items.size)
+        assertTrue(r.items[0].videos.any { it.contains(".mp4") })
+    }
+
+    /* -------- mood id：历史残留的 tid 与发布时间 -------- */
+
+    @Test
+    fun mood_cell_id_strips_event_suffix() {
+        assertEquals("abc12345.1", com.memora.app.core.net.QzoneApi.moodCellId(
+            "<a href=\"//user.qzone.qq.com/10001/mood/abc12345.1\">x</a>"
+        ))
+        assertEquals("abc12345", com.memora.app.core.net.QzoneApi.baseTid("abc12345.1"))
+        assertEquals("abc12345", com.memora.app.core.net.QzoneApi.baseTid("abc12345."))
+        assertEquals("abc12345", com.memora.app.core.net.QzoneApi.baseTid("abc12345"))
+    }
+
+    @Test
+    fun mood_published_time_decodes_little_endian_hex() {
+        // uin=10001 -> 0x2711；时间 1600000000 = 0x5F5E1000
+        fun le(v: Long): String {
+            val b = ByteArray(4)
+            for (i in 0 until 4) b[i] = ((v shr (8 * i)) and 0xFF).toByte()
+            return b.joinToString("") { "%02x".format(it) }
+        }
+        val cell = le(10001) + le(1_600_000_000L) + "abcd"
+        val t = com.memora.app.core.net.QzoneApi.moodPublishedAt(cell)
+        assertEquals(1_600_000_000_000L, t)
+        assertNull(com.memora.app.core.net.QzoneApi.moodPublishedAt("zz"))
+    }
+
+    /* -------- 与我相关：从 HTML 卡片找回已删除说说 -------- */
+
+    @Test
+    fun pav_all_reads_deleted_mood_from_card() {
+        val html = """<div class="feed"><div class="txt-box">2022 年的旧说说正文</div>""" +
+            """<div class="mod-comments">张三: 好怀念</div>""" +
+            """<a href="//user.qzone.qq.com/10001/mood/0a1b2c3d.1">x</a></div>"""
+        val body = "_Callback(" + org.json.JSONObject().apply {
+            put("code", 0)
+            put("data", org.json.JSONArray().put(org.json.JSONObject().apply {
+                put("uin", "10001")
+                put("nickname", "青")
+                put("feedstime", 1_650_000_000)
+                put("html", html)
+            }))
+        }.toString() + ");"
+        val r = com.memora.app.core.net.QzoneApi.parsePavAll(body, 0, 10)
+        assertEquals(com.memora.app.core.SourceStatus.AVAILABLE, r.status)
+        assertEquals(1, r.items.size)
+        assertEquals("0a1b2c3d", r.items[0].tid)
+        assertTrue(r.items[0].content.contains("2022"))
+    }
 }

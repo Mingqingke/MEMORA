@@ -4,6 +4,8 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +69,7 @@ import com.memora.app.ui.components.formatTime
 import com.memora.app.ui.theme.LocalMemora
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -83,12 +87,16 @@ fun ArchiveScreen(onOpen: (Route) -> Unit) {
     var list by remember { mutableStateOf<List<Moment>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var pickYear by remember { mutableStateOf(false) }
+    var years by remember { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
     var nameMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var avatarMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     LaunchedEffect(account?.id, year, state, source, stats.moments) {
         val acc = account ?: return@LaunchedEffect
         loading = true
+        years = withContext(Dispatchers.IO) {
+            runCatching { Db.get(context).yearCounts(acc.id) }.getOrDefault(emptyList())
+        }
         list = withContext(Dispatchers.IO) {
             runCatching {
                 Db.get(context).moments(
@@ -186,7 +194,10 @@ fun ArchiveScreen(onOpen: (Route) -> Unit) {
                 }
             } else {
                 items(list, key = { it.id }) { m ->
-                    BoxCard(onClick = { onOpen(Route.MomentDetail(m.tid)) }) {
+                    BoxCard(
+                        modifier = Modifier.animateItem(),
+                        onClick = { onOpen(Route.MomentDetail(m.tid)) },
+                    ) {
                         Row(verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -279,6 +290,7 @@ fun ArchiveScreen(onOpen: (Route) -> Unit) {
 fun MomentDetailScreen(tid: String, onBack: () -> Unit) {
     val c = LocalMemora.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val account by AppState.account.collectAsState()
     var moment by remember { mutableStateOf<Moment?>(null) }
     var comments by remember { mutableStateOf<List<Comment>>(emptyList()) }
@@ -290,6 +302,7 @@ fun MomentDetailScreen(tid: String, onBack: () -> Unit) {
     var authorName by remember { mutableStateOf("") }
     var authorAvatar by remember { mutableStateOf("") }
     var interactors by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var loadingLikes by remember { mutableStateOf(false) }
     var showAll by remember { mutableStateOf(false) }
 
     LaunchedEffect(tid, account?.id) {
@@ -421,6 +434,58 @@ fun MomentDetailScreen(tid: String, onBack: () -> Unit) {
                                     Text(formatTime(cm.createTime), fontSize = 10.sp, color = c.secondary)
                                 }
                                 Text(cm.content, fontSize = 13.sp, lineHeight = 20.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (moment != null) {
+                item {
+                    BoxCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("点赞名单", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "已取得 ${activities.count { it.type == "like" }} 人 · 平台可能还有更多",
+                                    fontSize = 10.5.sp, color = c.secondary,
+                                )
+                            }
+                            GhostButton(if (loadingLikes) "读取中" else "加载") {
+                                val acc = account ?: return@GhostButton
+                                val m = moment ?: return@GhostButton
+                                loadingLikes = true
+                                scope.launch {
+                                    val page = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            val cookie = com.memora.app.core.SessionStore.cookie(context)
+                                            val uin = com.memora.app.core.SessionStore.uin(context)
+                                            val gtk = com.memora.app.core.net.Net.gtk(
+                                                com.memora.app.core.SessionStore.pSkey(context)
+                                            )
+                                            val ctx2 = com.memora.app.core.net.QzoneContext(
+                                                app = context, accountId = acc.id, uin = uin,
+                                                cookie = cookie, gtk = gtk,
+                                                qzonetoken = com.memora.app.core.SessionStore.token(context),
+                                            )
+                                            com.memora.app.core.net.QzoneApi.likeList(
+                                                ctx2, m.tid, m.authorUin.ifBlank { uin },
+                                            )
+                                        }.getOrNull()
+                                    }
+                                    if (page == null) {
+                                        AppState.notify("点赞名单读取失败")
+                                    } else {
+                                        withContext(Dispatchers.IO) {
+                                            Db.get(context).addLikes(acc.id, m.tid, page.users, "interaction")
+                                        }
+                                        activities = withContext(Dispatchers.IO) {
+                                            runCatching { Db.get(context).activitiesFor(m.id) }.getOrDefault(emptyList())
+                                        }
+                                        AppState.notify("已取得 ${page.users.size} 人" + if (page.total > page.users.size) "，共 ${page.total} 人" else "")
+                                    }
+                                    loadingLikes = false
+                                }
                             }
                         }
                     }
@@ -580,7 +645,8 @@ fun SearchScreen(onOpen: (Route) -> Unit, onBack: () -> Unit) {
         }
         withContext(Dispatchers.IO) {
             val db = Db.get(context)
-            results = db.search(acc.id, keyword, from = from, to = to)
+            val indexed = db.searchIndexed(acc.id, keyword)
+            results = if (indexed.isNotEmpty()) indexed else db.search(acc.id, keyword, from = from, to = to)
             friendHits = db.searchFriends(acc.id, keyword)
             commentHits = db.searchComments(acc.id, keyword)
         }

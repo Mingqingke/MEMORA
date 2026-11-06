@@ -19,6 +19,7 @@ data class MomentRec(
     val createTime: Long?,
     val location: String = "",
     val pics: List<String> = emptyList(),
+    val videos: List<String> = emptyList(),
     val comments: List<CommentRec> = emptyList(),
     val likes: List<Pair<String, String>> = emptyList(),
     val isPrivate: Boolean = false,

@@ -217,7 +217,10 @@ fun FriendDetailScreen(uin: String, onBack: () -> Unit) {
                     InfoLine("分组", friend?.groups.orEmpty())
                     InfoLine(
                         "添加时间",
-                        friend?.addedAt?.takeIf { it > 0 }?.let { formatTime(it) } ?: "列表未提供",
+                        friend?.let { f ->
+                            if (f.addedAt > 0) formatTime(f.addedAt)
+                            else formatTime(f.firstSeenAt) + "（最早记录）"
+                        } ?: "—",
                     )
                     InfoLine("首次记录", formatTime(friend?.firstSeenAt))
                     InfoLine("最近出现", formatTime(friend?.lastSeenAt))

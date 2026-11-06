@@ -273,8 +273,15 @@ fun MemoraRoot() {
     }
 }
 
+/** 同一栈里不允许出现两个相同路由：Miuix 会抛 Duplicate contentKey。 */
+private fun NavController.pushSafely(route: Route) {
+    if (backStack.any { it == route }) return
+    push(route)
+}
+
 @Composable
 private fun NavHost(nav: NavController, reduceMotion: Boolean, wide: Boolean, onOpenSettings: () -> Unit) {
+    val pushUnique: (Route) -> Unit = { route -> nav.pushSafely(route) }
     androidx.compose.runtime.key(nav) {
     val transition = remember(reduceMotion) {
         if (reduceMotion) NavTransitions.None else NavTransitions.MiuixDefault
@@ -285,30 +292,30 @@ private fun NavHost(nav: NavController, reduceMotion: Boolean, wide: Boolean, on
         transition = transition,
     ) {
         entry<Route.Home> {
-            PageSurface { HomeScreen(onOpen = { nav.push(it) }, onSettings = onOpenSettings) }
+            PageSurface { HomeScreen(onOpen = { pushUnique(it) }, onSettings = onOpenSettings) }
         }
-        entry<Route.People> { PageSurface { PeopleScreen(onOpen = { nav.push(it) }) } }
-        entry<Route.Recovery> { PageSurface { RecoveryScreen(onOpen = { nav.push(it) }) } }
-        entry<Route.Settings> { PageSurface { SettingsHomeScreen(onOpen = { nav.push(it) }) } }
-        entry<Route.Archive> { PageSurface { ArchiveScreen(onOpen = { nav.push(it) }) } }
+        entry<Route.People> { PageSurface { PeopleScreen(onOpen = { pushUnique(it) }) } }
+        entry<Route.Recovery> { PageSurface { RecoveryScreen(onOpen = { pushUnique(it) }) } }
+        entry<Route.Settings> { PageSurface { SettingsHomeScreen(onOpen = { pushUnique(it) }) } }
+        entry<Route.Archive> { PageSurface { ArchiveScreen(onOpen = { pushUnique(it) }) } }
         entry<Route.Media> { PageSurface { MediaCenterScreen(onBack = { nav.pop() }) } }
-        entry<Route.Search> { PageSurface { SearchScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) } }
-        entry<Route.Tasks> { PageSurface { TasksScreen(onOpen = { nav.push(it) }, onBack = { nav.pop() }) } }
+        entry<Route.Search> { PageSurface { SearchScreen(onOpen = { pushUnique(it) }, onBack = { nav.pop() }) } }
+        entry<Route.Tasks> { PageSurface { TasksScreen(onOpen = { pushUnique(it) }, onBack = { nav.pop() }) } }
         entry<Route.TaskDetail> { r -> PageSurface { TaskDetailScreen(r.taskId, onBack = { nav.pop() }) } }
         entry<Route.FriendDetail> { r -> PageSurface { FriendDetailScreen(r.uin, onBack = { nav.pop() }) } }
         entry<Route.MomentDetail> { r -> PageSurface { MomentDetailScreen(r.tid, onBack = { nav.pop() }) } }
         entry<Route.ImportArchive> { PageSurface { ImportArchiveScreen(onBack = { nav.pop() }) } }
         entry<Route.Login> { PageSurface { LoginScreen(onBack = { nav.pop() }, onDone = { nav.pop() }) } }
-        entry<Route.SettingsAccount> { PageSurface { SettingsAccountScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsAccount> { PageSurface { SettingsAccountScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
         entry<Route.SettingsRecovery> { PageSurface { SettingsCaptureScreen(onBack = { nav.pop() }) } }
-        entry<Route.SettingsTasks> { PageSurface { SettingsTaskNetworkScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
-        entry<Route.SettingsStorage> { PageSurface { SettingsStorageScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsTasks> { PageSurface { SettingsTaskNetworkScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
+        entry<Route.SettingsStorage> { PageSurface { SettingsStorageScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
         entry<Route.SettingsAppearance> { PageSurface { SettingsAppearanceScreen(onBack = { nav.pop() }) } }
-        entry<Route.SettingsExport> { PageSurface { SettingsExportScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
-        entry<Route.SettingsDiagnostic> { PageSurface { SettingsDiagnosticScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
-        entry<Route.About> { PageSurface { AboutScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.SettingsExport> { PageSurface { SettingsExportScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
+        entry<Route.SettingsDiagnostic> { PageSurface { SettingsDiagnosticScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
+        entry<Route.About> { PageSurface { AboutScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
         entry<Route.Licenses> { PageSurface { LicensesScreen(onBack = { nav.pop() }) } }
-        entry<Route.ArchiveCheck> { PageSurface { ArchiveCheckScreen(onBack = { nav.pop() }, onOpen = { nav.push(it) }) } }
+        entry<Route.ArchiveCheck> { PageSurface { ArchiveCheckScreen(onBack = { nav.pop() }, onOpen = { pushUnique(it) }) } }
     }
     }
 }

@@ -21,7 +21,7 @@ object Prefs {
     /** 扫描起始年份，0 表示尽量到底 */
     val scanStartYear = MutableStateFlow(0)
     /** 每个来源最多翻页数 */
-    val maxPages = MutableStateFlow(40)
+    val maxPages = MutableStateFlow(120)
     /** 每页条数 */
     val pageSize = MutableStateFlow(20)
     /** 并发来源数（1 最稳） */
@@ -64,7 +64,7 @@ object Prefs {
         premiumMaterial.value = sp.getBoolean("premium_material", false)
         haptic.value = sp.getBoolean("haptic", true)
         scanStartYear.value = sp.getInt("scan_start_year", 0)
-        maxPages.value = sp.getInt("max_pages", 40)
+        maxPages.value = sp.getInt("max_pages", 120)
         pageSize.value = sp.getInt("page_size", 20)
         concurrency.value = sp.getInt("concurrency", 1)
         wifiOnly.value = sp.getBoolean("wifi_only", true)

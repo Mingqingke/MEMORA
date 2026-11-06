@@ -101,6 +101,18 @@ object Ingest {
                     )
                     actCount++
                 }
+                rec.videos.forEachIndexed { i, url ->
+                    val holder = Db.momentKey(accountId, rec.tid)
+                    upsertMedia(
+                        accountId, rec.tid,
+                        MediaItem(
+                            id = mediaId(holder, url, 100 + i), momentId = holder, url = url, localPath = "",
+                            kind = 1, mime = "video/mp4", size = 0, hash = "", state = 0, bytes = 0,
+                            caption = "", albumId = "",
+                        ),
+                    )
+                    mediaCount++
+                }
                 rec.pics.forEachIndexed { i, url ->
                     val holder = Db.momentKey(accountId, rec.tid)
                     upsertMedia(

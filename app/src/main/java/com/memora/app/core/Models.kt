@@ -47,7 +47,7 @@ enum class SourceStatus(val label: String, val detail: String) {
     RATE_LIMITED("稍后再试", "请求过于频繁"),
     BLOCKED("需要验证", "平台要求额外验证"),
     NOT_FOUND("暂不可用", "该入口已不存在"),
-    UNSUPPORTED("不支持", "当前账号未提供"),
+    UNSUPPORTED("不支持", "当前接口不返回"),
     SERVER_ERROR("暂时无法获取", "服务器没有正常返回"),
     PARSE_ERROR("格式无法识别", "内容格式变了"),
     EMPTY("暂无内容", "请求成功但没有记录"),

@@ -133,11 +133,27 @@ object TaskEngine {
         }
         // 查找更多历史：只走历史路径，不动当前列表
         "history" -> buildList {
-            add(PlanStep("interaction", "res_type_1"))
-            add(PlanStep("interaction", "res_type_2"))
-            add(PlanStep("legacy", "feeds_html"))
+            add(PlanStep("related", "pav_all", pages = 400))
+            add(PlanStep("guestbook", "msgb", pages = 400))
+            add(PlanStep("interaction", "res_type_1", pages = 400))
+            add(PlanStep("interaction", "res_type_2", pages = 400))
+            add(PlanStep("legacy", "feeds_html", pages = 400))
+            if (Prefs.includeMoments.value) add(PlanStep("current", "msglist", pages = 400))
         }
-        "full", "deep" -> buildList {
+        // 深度归档：把分页上限拉满，专门用来翻更早的年份
+        "deep" -> buildList {
+            if (Prefs.includeFriends.value) add(PlanStep("friend", "main"))
+            add(PlanStep("related", "pav_all", pages = 400))
+            add(PlanStep("guestbook", "msgb", pages = 400))
+            if (Prefs.includeMoments.value) add(PlanStep("current", "msglist", pages = 400))
+            if (Prefs.includeHistory.value) {
+                add(PlanStep("interaction", "res_type_1", pages = 400))
+                add(PlanStep("interaction", "res_type_2", pages = 400))
+                add(PlanStep("legacy", "feeds_html", pages = 400))
+            }
+            if (Prefs.includeAlbums.value) add(PlanStep("album", "albums"))
+        }
+        "full" -> buildList {
             if (Prefs.includeFriends.value) add(PlanStep("friend", "main"))
             if (Prefs.includeMoments.value) add(PlanStep("current", "msglist"))
             if (Prefs.includeHistory.value) {
@@ -204,7 +220,7 @@ object TaskEngine {
         }
 
         // 内容与媒体分开：内容先落库，媒体最后补，媒体失败不影响内容归档结果
-        if (!authBlocked && Prefs.downloadMedia.value && Prefs.includeAlbums.value) {
+        if (!authBlocked && Prefs.downloadMedia.value) {
             db.updateTask(task.id, note = "正在保存图片和视频")
             MediaEngine.downloadPending(app, db, task.id)
         }
@@ -249,8 +265,10 @@ object TaskEngine {
         var pages = cp?.pageCount ?: 0
         var failures = 0
         var sawData = false
+        var idlePages = 0
         val pageSize = Prefs.pageSize.value.coerceIn(5, 50)
-        val maxPages = minOf(Prefs.maxPages.value.coerceIn(1, 500), pageCap ?: Int.MAX_VALUE)
+        // 任务显式给出的页数优先（深度归档 400 页），否则用设置里的上限
+        val maxPages = (pageCap ?: Prefs.maxPages.value).coerceIn(1, 500)
 
         while (pages < maxPages) {
             if (cancelled.contains(task.id)) return StreamOutcome.FAILED
@@ -298,6 +316,7 @@ object TaskEngine {
             if (fetched.recordCount > 0) {
                 val result = Ingest.commit(db, task.accountId, source.id, fetched, System.currentTimeMillis(), task.id)
                 sawData = true
+                idlePages = if (result.inserted > 0) 0 else idlePages + 1
                 db.putSourceState(
                     SourceState(
                         task.accountId, source.id, stream,
@@ -308,9 +327,15 @@ object TaskEngine {
                 )
                 if (Prefs.downloadMedia.value) MediaEngine.queueCount(result.media)
             } else {
+                idlePages++
                 db.putSourceState(
                     SourceState(task.accountId, source.id, stream, fetched.status, fetched.detail, System.currentTimeMillis(), 0, 0)
                 )
+            }
+            // 连续 4 页没有任何新内容，说明已经翻到底，继续请求只会浪费
+            if (idlePages >= 4) {
+                db.updateTask(task.id, note = "已翻到没有新内容")
+                return StreamOutcome.OK
             }
 
             pages++

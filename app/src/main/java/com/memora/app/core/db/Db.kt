@@ -679,7 +679,10 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             sb.append(" AND m.createTime>=? AND m.createTime<?")
             args.add(yearStart(year).toString()); args.add(yearStart(year + 1).toString())
         }
-        if (!state.isNullOrBlank() && state != "all") { sb.append(" AND m.state=?"); args.add(state) }
+        if (!state.isNullOrBlank() && state != "all") {
+            if (state.startsWith("!")) { sb.append(" AND m.state<>?"); args.add(state.substring(1)) }
+            else { sb.append(" AND m.state=?"); args.add(state) }
+        }
         if (!source.isNullOrBlank() && source != "all") {
             sb.append(" AND m.id IN (SELECT momentId FROM moment_fields WHERE sourceId=?)")
             args.add(source)
@@ -692,6 +695,33 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         return readableDatabase.rawQuery(sb.toString(), args.toTypedArray()).use { c ->
             ArrayList<Moment>().also { l -> while (c.moveToNext()) l.add(c.toMoment()) }
         }
+    }
+
+    /** 某次归档之后新入库的内容，用于在归档页直接查看。 */
+    fun momentsAddedSince(accountId: String, since: Long, limit: Int = 5): List<Moment> {
+        val out = ArrayList<Moment>()
+        readableDatabase.rawQuery(
+            "SELECT $MOMENT_COLS, (SELECT COUNT(*) FROM comments c WHERE c.momentId=m.id), " +
+                "(SELECT COUNT(*) FROM activities a WHERE a.linkedMomentId=m.id), " +
+                "(SELECT COUNT(*) FROM moment_media mm WHERE mm.momentId=m.id) " +
+                "FROM moments m WHERE m.accountId=? AND m.createdAt>=? " +
+                "ORDER BY m.createdAt DESC LIMIT $limit",
+            arrayOf(accountId, since.toString()),
+        ).use { c -> while (c.moveToNext()) out.add(c.toMoment()) }
+        return out
+    }
+
+    /** 每年有多少条，用来做年份跳转。 */
+    fun yearCounts(accountId: String): List<Pair<Int, Int>> {
+        val out = ArrayList<Pair<Int, Int>>()
+        readableDatabase.rawQuery(
+            "SELECT CAST(strftime('%Y', createTime/1000, 'unixepoch', 'localtime') AS INTEGER) y, COUNT(*) " +
+                "FROM moments WHERE accountId=? AND createTime>0 GROUP BY y ORDER BY y DESC",
+            arrayOf(accountId),
+        ).use { c ->
+            while (c.moveToNext()) out.add(c.getInt(0) to c.getInt(1))
+        }
+        return out
     }
 
     fun momentCount(accountId: String): Int = scalar(
@@ -738,6 +768,24 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
                 confidence = it.confidence,
                 detail = srcNames[it.sourceId] ?: it.sourceId,
             )
+        }
+    }
+
+    /** 把点赞名单写入互动表（同一用户同一条只保留一条）。 */
+    fun addLikes(accountId: String, tid: String, users: List<Pair<String, String>>, sourceId: String) {
+        if (users.isEmpty()) return
+        val now = System.currentTimeMillis()
+        commitPage {
+            users.forEach { (uin, name) ->
+                upsertActivity(
+                    accountId,
+                    Activity(
+                        id = "$accountId:$tid:like:$uin", accountId = accountId, actorUin = uin,
+                        actorName = name, type = "like", content = "", time = null,
+                        targetTid = tid, sourceId = sourceId, capturedAt = now, linkedMomentId = "",
+                    ),
+                )
+            }
         }
     }
 
@@ -1194,7 +1242,9 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             val m = momentById(momentId) ?: return
             val body = buildString {
                 append(m.content).append(' ')
+                append(displayName(m.accountId, m.authorUin)).append(' ')
                 comments(momentId).take(200).forEach { append(it.content).append(' ') }
+                media(momentId).take(50).forEach { if (it.caption.isNotBlank()) append(it.caption).append(' ') }
             }
             if (body.isBlank()) {
                 writableDatabase.delete("search_index", "ref=?", arrayOf(momentId))

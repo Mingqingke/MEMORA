@@ -1,12 +1,13 @@
 {
-  "versionCode": 20,
-  "versionName": "1.2.26",
+  "versionCode": 27,
+  "versionName": "1.2.33",
   "notes": [
-    "修复建表语句语法错误导致的所有崩溃",
-    "归档任务创建增加兜底",
-    "建库失败不再让应用打不开"
+    "归档页可直接查看本次新增内容",
+    "新增「与我相关」来源，找回已删除说说",
+    "新增留言板来源",
+    "更新界面改版，多源自动检查"
   ],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.26/MEMORA-v1.2.26.apk",
-  "size": 12032994,
-  "sha256": "63671255b055266d4cabb0e601072c9aeb3a13721d908c000f44332b48e426c9"
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.33/MEMORA-v1.2.33.apk",
+  "size": 12049378,
+  "sha256": "f264bc9f0d1c3da063175e116eac8f5e387103b182e2e496d2b45f073c4ad3de"
 }

@@ -53,6 +53,60 @@ object CurrentFeedsSource : ArchiveSource {
  * 历史互动流。res_type 之间不是包含关系：实测存在 201 / 83 条两种结果，
  * 因此每一路独立游标、独立状态、独立解析，最后按内容 ID 合并。
  */
+/** 「与我相关」：说说删了，别人的评论/点赞记录还留着，是找回已删除说说的主来源。 */
+object RelatedFeedSource : ArchiveSource {
+    override val id = "related"
+    override val name = "与我相关"
+    override val purpose = "别人对我的评论与点赞记录，说说被删后仍可能保留"
+    override val streams = listOf(StreamSpec("pav_all", "与我相关流", "offset 每页 +10 独立分页"))
+    override val verified = false
+
+    override suspend fun fetch(ctx: QzoneContext, stream: String, cursor: String?, pageSize: Int): FetchedPage {
+        val offset = cursor?.toIntOrNull() ?: 0
+        val num = pageSize.coerceIn(10, 30)
+        val res = QzoneApi.pavAll(ctx, offset, num)
+        if (!res.ok) {
+            return FetchedPage(statusFor(res), res.error.ifBlank { "HTTP ${res.code}" }, nextCursor = cursor, hasMore = false)
+        }
+        val parsed = QzoneApi.parsePavAll(res.body, offset, pageSize)
+        return FetchedPage(
+            status = parsed.status,
+            detail = parsed.detail,
+            moments = parsed.items,
+            nextCursor = if (parsed.hasMore) parsed.nextOffset.toString() else null,
+            hasMore = parsed.hasMore,
+            rawCount = parsed.rawCount,
+            unparsed = parsed.unparsed,
+        )
+    }
+}
+
+object GuestbookSource : ArchiveSource {
+    override val id = "guestbook"
+    override val name = "留言板"
+    override val purpose = "自己空间与好友的留言，常比说说更早，且不随说说删除"
+    override val streams = listOf(StreamSpec("msgb", "留言列表", "按时间倒序 每页一次请求"))
+    override val verified = false
+
+    override suspend fun fetch(ctx: QzoneContext, stream: String, cursor: String?, pageSize: Int): FetchedPage {
+        val start = cursor?.toIntOrNull() ?: 0
+        val res = QzoneApi.guestbook(ctx, start, pageSize)
+        if (!res.ok) {
+            return FetchedPage(statusFor(res), res.error.ifBlank { "HTTP ${res.code}" }, nextCursor = cursor, hasMore = false)
+        }
+        val parsed = QzoneApi.parseGuestbook(res.body, start, pageSize)
+        return FetchedPage(
+            status = parsed.status,
+            detail = parsed.detail,
+            moments = parsed.items,
+            nextCursor = if (parsed.hasMore) parsed.nextOffset.toString() else null,
+            hasMore = parsed.hasMore,
+            rawCount = parsed.rawCount,
+            unparsed = parsed.unparsed,
+        )
+    }
+}
+
 object InteractionFeedSource : ArchiveSource {
     override val id = "interaction"
     override val name = "历史互动流"

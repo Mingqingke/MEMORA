@@ -97,6 +97,7 @@ fun RecoveryScreen(onOpen: (Route) -> Unit) {
 
     var probing by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
+    var added by remember { mutableStateOf<List<com.memora.app.core.Moment>>(emptyList()) }
     var lastRun by remember { mutableStateOf<RunSummary?>(null) }
     var previousRun by remember { mutableStateOf<RunSummary?>(null) }
 
@@ -146,30 +147,118 @@ fun RecoveryScreen(onOpen: (Route) -> Unit) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // 打开归档先看状态与进度，而不是先看一排入口
             item {
-                EntryCard(
-                    title = "完整归档",
-                    subtitle = "把能看到的说 图片 视频 评论保存到本机",
-                    onClick = { start("full", "完整归档") },
-                    trailing = if (active != null) "进行中" else null,
-                )
+                val runningNow = active != null
+                val fetched = lastRun?.stat?.fetched ?: 0
+                val done = lastRun?.let { it.stat.inserted + it.stat.duplicates } ?: 0
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 22.dp,
+                    colors = CardDefaults.defaultColors(color = cardColor()),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                when {
+                                    runningNow -> "正在归档"
+                                    lastRun == null -> "还没有归档过"
+                                    else -> "上次归档"
+                                },
+                                fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (lastRun != null) {
+                                Text(
+                                    formatDay(lastRun!!.task.updatedAt),
+                                    fontSize = 11.sp, color = c.secondary,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "已保存 ${lastRun?.stat?.inserted ?: 0} · 已存在 ${lastRun?.stat?.duplicates ?: 0}",
+                            fontSize = 12.sp, color = c.secondary,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            progress = when {
+                                runningNow && fetched > 0 -> (done.toFloat() / fetched).coerceIn(0f, 1f)
+                                runningNow -> null
+                                lastRun != null -> 1f
+                                else -> 0f
+                            },
+                        )
+                        if (runningNow) {
+                            val text = com.memora.app.core.task.TaskEngine.progress.collectAsState().value[active!!.id]
+                            if (!text.isNullOrBlank()) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(text, fontSize = 10.5.sp, color = c.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (runningNow) {
+                                GhostButton(if (running.contains(active!!.id)) "暂停" else "继续") {
+                                    if (running.contains(active!!.id)) TaskEngine.pause(context, active!!.id)
+                                    else TaskEngine.start(context, active!!.id)
+                                }
+                                GhostButton("详情") { onOpen(Route.TaskDetail(active!!.id)) }
+                            } else {
+                                GhostButton("开始归档") { start("full", "完整归档") }
+                                if (lastRun != null) {
+                                    GhostButton("归档记录") { onOpen(Route.Tasks) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
             item {
-                EntryCard(
-                    title = "归档新增",
-                    subtitle = "只补新的内容 不重复下载",
-                    onClick = { start("incremental", "归档新增内容") },
-                )
-            }
-            item {
-                EntryCard(
-                    title = "查找更多历史",
-                    subtitle = "更早的记录与互动残留",
-                    onClick = { start("history", "查找更多历史内容") },
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GhostButton("完整归档") { start("full", "完整归档") }
+                    GhostButton("归档新增") { start("incremental", "归档新增内容") }
+                    GhostButton("更多历史") { start("history", "查找更多历史内容") }
+                    GhostButton("深度归档") { start("deep", "深度归档") }
+                }
             }
 
             if (lastRun != null) {
+                item {
+                    SectionLabel("本次新增", if (added.isEmpty()) "这次没有新内容" else "归档完直接看")
+                    BoxCard {
+                        if (added.isEmpty()) {
+                            Text(
+                                if (running.isNotEmpty()) "还在归档，完成后这里会列出新内容" else "这次没有新增内容，可以试试深度归档",
+                                fontSize = 12.sp, color = c.secondary,
+                            )
+                        } else {
+                            added.forEachIndexed { i, m ->
+                                if (i > 0) Divider()
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .clickable { onOpen(Route.MomentDetail(m.tid)) }
+                                        .padding(vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            m.content.ifBlank { "（无正文）" },
+                                            fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            "${m.state.label} · ${m.createTime?.let { formatDay(it) } ?: "时间未知"}",
+                                            fontSize = 10.5.sp, color = c.secondary,
+                                        )
+                                    }
+                                    Icon(MiuixIcons.ChevronForward, null, Modifier.size(13.dp), tint = c.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
                 item {
                     SectionLabel("归档对比", "与上一次相比")
                     CompareCard(lastRun = lastRun, previous = previousRun)
@@ -180,10 +269,7 @@ fun RecoveryScreen(onOpen: (Route) -> Unit) {
                 SectionLabel("最近归档", "${tasks.size} 次")
                 BoxCard {
                     if (tasks.isEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("还没有归档记录", fontSize = 13.5.sp, modifier = Modifier.weight(1f))
-                            GhostButton("立即归档") { start("full", "完整归档") }
-                        }
+                        Text("还没有归档记录", fontSize = 13.sp, color = c.secondary)
                     } else {
                         tasks.take(3).forEachIndexed { i, t ->
                             if (i > 0) Divider()
@@ -200,7 +286,7 @@ fun RecoveryScreen(onOpen: (Route) -> Unit) {
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                 }
-                                Text(t.status.label, fontSize = 10.5.sp, color = if (t.status == TaskStatus.COMPLETED) c.ok else c.secondary)
+                                Text(t.status.label, fontSize = 10.5.sp, color = c.secondary)
                                 Spacer(Modifier.width(4.dp))
                                 Icon(MiuixIcons.ChevronForward, null, Modifier.size(13.dp), tint = c.secondary)
                             }

@@ -13,6 +13,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.width
+import com.memora.app.ui.components.BoxCard
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,16 +48,42 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
 
     OverlayDialog(
         show = true,
-        title = "发现新版本 ${info.versionName}",
-        summary = "当前 ${com.memora.app.BuildConfig.VERSION_NAME}",
+        title = "发现新版本",
+        summary = "",
         onDismissRequest = { if (!busy) onDismiss() },
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-            if (info.notes.isEmpty()) {
-                Text("修复了一些已知问题", fontSize = 12.sp, color = c.secondary)
-            } else {
-                info.notes.take(6).forEach { line ->
-                    Text("· $line", fontSize = 12.sp, color = c.secondary, lineHeight = 20.sp)
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    info.versionName,
+                    fontSize = 30.sp, fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.5).sp,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "当前 ${com.memora.app.BuildConfig.VERSION_NAME}",
+                    fontSize = 11.5.sp, color = c.secondary,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                listOfNotNull(
+                    if (info.size > 0) "%.1f MB".format(info.size / 1024f / 1024f) else null,
+                    if (info.sha256.isNotBlank()) "SHA-256 校验" else null,
+                ).joinToString(" · "),
+                fontSize = 11.sp, color = c.secondary,
+            )
+            Spacer(Modifier.height(14.dp))
+            BoxCard(corner = 16) {
+                Text("更新内容", fontSize = 11.sp, color = c.secondary, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(6.dp))
+                if (info.notes.isEmpty()) {
+                    Text("修复了一些已知问题", fontSize = 12.5.sp)
+                } else {
+                    info.notes.take(8).forEach { line ->
+                        Text("· $line", fontSize = 12.5.sp, lineHeight = 21.sp)
+                    }
                 }
             }
             if (progress >= 0f) {
