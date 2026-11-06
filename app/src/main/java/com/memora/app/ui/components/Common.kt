@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -669,19 +670,9 @@ fun BigRing(
     showCheck: Boolean = false,
     showPenguin: Boolean = true,
 ) {
+    val penguin = rememberDrawableBitmap(com.memora.app.R.drawable.qq_penguin)
     androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val ringSize = maxWidth
-        if (showPenguin) {
-            androidx.compose.foundation.Image(
-                painter = androidx.compose.ui.res.painterResource(com.memora.app.R.drawable.qq_penguin),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(ringSize * 0.46f)
-                    .align(Alignment.BottomCenter)
-                    .offset(y = -(ringSize * 0.10f)),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tone),
-            )
-        }
         Canvas(Modifier.fillMaxSize()) {
             val d = size.minDimension
             val stroke = d * 0.075f
@@ -691,6 +682,21 @@ fun BigRing(
                 radius = radius,
                 style = Stroke(width = stroke, cap = StrokeCap.Round),
             )
+            if (showPenguin && penguin != null) {
+                // 官方企鹅图形：高滤波缩放，保持原版 -14° 倾角
+                val side = (d * 0.50f).roundToInt().toFloat()
+                val left = (size.width - side) / 2f
+                val top = (size.height - side) / 2f + d * 0.01f
+                rotate(-14f, pivot = center) {
+                    drawImage(
+                        image = penguin,
+                        dstOffset = androidx.compose.ui.unit.IntOffset(left.roundToInt(), top.roundToInt()),
+                        dstSize = androidx.compose.ui.unit.IntSize(side.roundToInt(), side.roundToInt()),
+                        filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tone),
+                    )
+                }
+            }
             val sweep = when {
                 fraction == null -> 96f
                 else -> (360f * fraction).coerceAtLeast(14f)
