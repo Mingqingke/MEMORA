@@ -23,6 +23,8 @@ data class MomentRec(
     val comments: List<CommentRec> = emptyList(),
     val likes: List<Pair<String, String>> = emptyList(),
     val isPrivate: Boolean = false,
+    /** post=说说主体；clue=只有互动线索，不能当正文 */
+    val kind: String = "post",
 )
 
 data class FriendRec(

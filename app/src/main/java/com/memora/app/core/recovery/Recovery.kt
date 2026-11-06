@@ -52,6 +52,8 @@ object RecoveryEngine {
 
         val state = when {
             "current" in sources -> RecoveryState.CURRENT
+            // 线索型记录不升级，避免把互动摘要当成恢复成功
+            m.state == RecoveryState.INTERACTION_FRAGMENT -> RecoveryState.INTERACTION_FRAGMENT
             "recycle" in sources -> RecoveryState.RECYCLE_BIN
             body && time && inter -> RecoveryState.RECOVERED_FULL
             body -> RecoveryState.RECOVERED_PARTIAL

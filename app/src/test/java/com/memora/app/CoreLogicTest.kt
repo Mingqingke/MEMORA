@@ -357,4 +357,27 @@ class CoreLogicTest {
         assertEquals("0a1b2c3d", r.items[0].tid)
         assertTrue(r.items[0].content.contains("2022"))
     }
+
+    /* -------- 线索不得冒充正文 -------- */
+
+    @Test
+    fun pav_all_marks_records_as_clue() {
+        val html = """<div class="txt-box">张三评论了你的说说</div><a href="//user.qzone.qq.com/10001/mood/0a1b2c3d.1">x</a>"""
+        val body = "_Callback(" + org.json.JSONObject().apply {
+            put("code", 0)
+            put("data", org.json.JSONArray().put(org.json.JSONObject().apply {
+                put("uin", "10001"); put("feedstime", 1_650_000_000); put("html", html)
+            }))
+        }.toString() + ");"
+        val r = com.memora.app.core.net.QzoneApi.parsePavAll(body, 0, 10)
+        assertEquals("clue", r.items[0].kind)
+    }
+
+    @Test
+    fun guestbook_marks_records_as_clue() {
+        val body = """{"code":0,"data":{"commentList":[{"commentId":"9","uin":"10002","content":"留言内容","datetime":"2022-05-01 10:00:00"}]}}"""
+        val r = com.memora.app.core.net.QzoneApi.parseGuestbook(body, 0, 20)
+        assertEquals("clue", r.items[0].kind)
+        assertTrue(r.items[0].tid.startsWith("gb:"))
+    }
 }

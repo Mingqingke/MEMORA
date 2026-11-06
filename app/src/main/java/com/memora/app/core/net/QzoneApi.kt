@@ -117,6 +117,7 @@ object QzoneApi {
                     authorUin = host0(html).ifBlank { "" },
                     content = content,
                     createTime = t,
+                    kind = "clue",
                 )
             )
         }
@@ -587,6 +588,7 @@ object QzoneApi {
                     authorUin = str(o, "uin", "fuin", "userUin"),
                     content = content,
                     createTime = time(o.opt("datetime") ?: o.opt("time") ?: o.opt("createTime")),
+                    kind = "clue",
                 )
             )
         }
