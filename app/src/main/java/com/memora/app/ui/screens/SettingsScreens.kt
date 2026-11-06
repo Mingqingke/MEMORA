@@ -789,6 +789,34 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
                 }
             }
 
+            // 作者
+            item {
+                BoxCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(52.dp).clip(CircleShape).background(c.hairline),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (avatar != null) {
+                                androidx.compose.foundation.Image(
+                                    bitmap = avatar, contentDescription = null,
+                                    modifier = Modifier.size(52.dp).clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                )
+                            } else {
+                                Text("青", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = c.secondary)
+                            }
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("青", fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(3.dp))
+                            Text("开发者", fontSize = 11.5.sp, color = c.secondary)
+                        }
+                    }
+                }
+            }
+
             // 其他
             item { SectionLabel("其他") }
             item {

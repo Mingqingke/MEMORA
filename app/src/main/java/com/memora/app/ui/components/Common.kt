@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -465,64 +466,13 @@ fun DropRow(
     summary: String = "",
     onSelected: (Int) -> Unit,
 ) {
-    val c = LocalMemora.current
-    var open by remember { mutableStateOf(false) }
-    val index = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-    Box(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth()
-                .clickable { open = true }
-                .padding(vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, color = c.ink)
-                if (summary.isNotBlank()) Text(summary, fontSize = 10.5.sp, color = c.secondary)
-            }
-            Text(items.getOrNull(index).orEmpty(), fontSize = 13.sp, color = c.secondary)
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                top.yukonga.miuix.kmp.icon.MiuixIcons.ChevronForward,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = c.secondary,
-            )
-        }
-        if (open) {
-            androidx.compose.ui.window.Popup(
-                onDismissRequest = { open = false },
-                alignment = androidx.compose.ui.Alignment.TopEnd,
-            ) {
-                Card(
-                    cornerRadius = 16.dp,
-                    colors = CardDefaults.defaultColors(color = c.card),
-                ) {
-                    Column(Modifier.width(190.dp).padding(vertical = 6.dp)) {
-                        items.forEachIndexed { i, label ->
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clickable { open = false; onSelected(i) }
-                                    .padding(horizontal = 14.dp, vertical = 11.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    label, fontSize = 13.5.sp,
-                                    color = if (i == index) c.ink else c.secondary,
-                                    fontWeight = if (i == index) FontWeight.Medium else FontWeight.Normal,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                if (i == index) Icon(
-                                    top.yukonga.miuix.kmp.icon.MiuixIcons.ChevronForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp), tint = c.ink,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    top.yukonga.miuix.kmp.preference.WindowDropdownPreference(
+        items = items,
+        selectedIndex = selectedIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0)),
+        title = title,
+        summary = summary,
+        onSelectedIndexChange = onSelected,
+    )
 }
 
 /** 更新下载用的波浪进度条。 */
@@ -719,7 +669,19 @@ fun BigRing(
     showCheck: Boolean = false,
     showPenguin: Boolean = true,
 ) {
-    Box(modifier, contentAlignment = Alignment.Center) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val ringSize = maxWidth
+        if (showPenguin) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(com.memora.app.R.drawable.qq_penguin),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(ringSize * 0.46f)
+                    .align(Alignment.BottomCenter)
+                    .offset(y = -(ringSize * 0.10f)),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tone),
+            )
+        }
         Canvas(Modifier.fillMaxSize()) {
             val d = size.minDimension
             val stroke = d * 0.075f
@@ -754,49 +716,7 @@ fun BigRing(
                     ),
                 )
             }
-            if (showPenguin) {
-                // 矢量企鹅：左右严格镜像，底边贴住圆环内沿，不用位图
-                val box = d * 0.40f
-                val hh = d * 0.42f
-                val cx = size.width / 2f
-                val bottom = size.height / 2f + radius - stroke * 0.5f - d * 0.015f
-                val top = bottom - hh
-                fun px(v: Float) = cx + (v - 0.5f) * box
-                fun py(v: Float) = top + v * hh
-
-                // 两脚先画，压在身体下面
-                drawOval(
-                    color = tone,
-                    topLeft = Offset(px(0.18f), py(0.86f)),
-                    size = androidx.compose.ui.geometry.Size(box * 0.28f, hh * 0.13f),
-                )
-                drawOval(
-                    color = tone,
-                    topLeft = Offset(px(0.54f), py(0.86f)),
-                    size = androidx.compose.ui.geometry.Size(box * 0.28f, hh * 0.13f),
-                )
-                // 身体：单一对称轮廓，头在顶端收窄
-                val body = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(px(0.5f), py(0.04f))
-                    cubicTo(px(0.72f), py(0.06f), px(0.84f), py(0.30f), px(0.80f), py(0.58f))
-                    cubicTo(px(0.77f), py(0.80f), px(0.66f), py(0.92f), px(0.5f), py(0.92f))
-                    cubicTo(px(0.34f), py(0.92f), px(0.23f), py(0.80f), px(0.20f), py(0.58f))
-                    cubicTo(px(0.16f), py(0.30f), px(0.28f), py(0.06f), px(0.5f), py(0.04f))
-                    close()
-                }
-                drawPath(body, tone)
-                // 两翅，左右镜像
-                drawOval(
-                    color = tone,
-                    topLeft = Offset(px(0.08f), py(0.44f)),
-                    size = androidx.compose.ui.geometry.Size(box * 0.16f, hh * 0.30f),
-                )
-                drawOval(
-                    color = tone,
-                    topLeft = Offset(px(0.76f), py(0.44f)),
-                    size = androidx.compose.ui.geometry.Size(box * 0.16f, hh * 0.30f),
-                )
-            }
+            // 企鹅用官方图形，位置在主环内居中偏下
         }
     }
 }

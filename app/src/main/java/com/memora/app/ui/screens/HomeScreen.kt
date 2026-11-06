@@ -266,7 +266,12 @@ fun HomeScreen(onOpen: (Route) -> Unit, onSettings: () -> Unit) {
                     MiniCard(
                         title = "好友",
                         value = "${stats.friends}",
-                        sub = if (stats.goneFriends > 0) "${stats.goneFriends} 位消失" else "关系稳定",
+                        sub = when {
+                            !connected -> "未登录"
+                            stats.friends == 0 -> "未归档"
+                            stats.goneFriends > 0 -> "${stats.goneFriends} 位消失"
+                            else -> "关系稳定"
+                        },
                         modifier = Modifier.weight(1f),
                         onClick = { onOpen(Route.People) },
                     )
