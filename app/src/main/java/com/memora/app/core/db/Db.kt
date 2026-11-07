@@ -140,6 +140,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             Triple("moment_media", "caption", "TEXT"),
             Triple("moments", "visibility", "TEXT"),
             Triple("moments", "fieldCount", "INTEGER NOT NULL DEFAULT 0"),
+            Triple("moments", "lastSeenAt", "INTEGER NOT NULL DEFAULT 0"),
             Triple("tasks", "note", "TEXT"),
             Triple("source_states", "records", "INTEGER NOT NULL DEFAULT 0"),
             Triple("authors", "posts", "INTEGER NOT NULL DEFAULT 0"),
@@ -200,7 +201,8 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
               content TEXT, createTime INTEGER, location TEXT, visibility TEXT,
               state TEXT NOT NULL, completeness INTEGER NOT NULL, confidence INTEGER NOT NULL,
               fieldCount INTEGER NOT NULL DEFAULT 0,
-              createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL
+              createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+              lastSeenAt INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
@@ -465,6 +467,29 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         "SELECT uin, misses FROM friends WHERE accountId=? AND goneState>0", arrayOf(accountId)
     ).use { c -> HashMap<String, Int>().also { m -> while (c.moveToNext()) m[c.getString(0)] = c.getInt(1) } }
 
+    /**
+     * 一次扫描结束后：上次可见、这次没再出现的记录，改成「历史已发现」。
+     * 注意：只有当前列表来源完整跑完才允许调用，避免把接口失败误判成删除。
+     */
+    fun markMissingSince(accountId: String, since: Long): Int {
+        if (since <= 0) return 0
+        val cv = ContentValues().apply {
+            put("state", RecoveryState.HISTORICAL_MISSING.name)
+            put("updatedAt", System.currentTimeMillis())
+        }
+        return writableDatabase.update(
+            "moments", cv,
+            "accountId=? AND lastSeenAt>0 AND lastSeenAt<? AND state=?",
+            arrayOf(accountId, since.toString(), RecoveryState.CURRENT.name),
+        )
+    }
+
+    /** 每条记录最后一次在来源里被看到的时间。 */
+    fun markSeen(accountId: String, tid: String, at: Long) {
+        val cv = ContentValues().apply { put("lastSeenAt", at) }
+        writableDatabase.update("moments", cv, "accountId=? AND tid=?", arrayOf(accountId, tid))
+    }
+
     fun applyVerdict(id: String, state: RecoveryState, completeness: Completeness, confidence: Confidence) {
         val cv = ContentValues().apply {
             put("state", state.name); put("completeness", completeness.dots); put("confidence", confidence.ordinal)
@@ -573,7 +598,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
             accountId: String, tid: String, authorUin: String, content: String,
             createTime: Long?, location: String, state: RecoveryState,
             completeness: Completeness, confidence: Confidence, sourceId: String,
-            fields: List<String>, now: Long,
+            fields: List<String>, now: Long, lastSeenAt: Long = 0L,
         ): Boolean {
             if (tid.isBlank()) return false
             val id = momentKey(accountId, tid)
@@ -588,6 +613,7 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
                 put("completeness", completeness.dots)
                 put("confidence", confidence.ordinal)
                 put("createdAt", existing?.createdAt ?: now); put("updatedAt", now)
+                if (lastSeenAt > 0) put("lastSeenAt", lastSeenAt)
             }
             db.insertWithOnConflict("moments", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
             val fcv = ContentValues()
@@ -1139,7 +1165,8 @@ class Db private constructor(context: Context) : SQLiteOpenHelper(context, NAME,
         state = RecoveryState.of(getString(7)),
         completeness = Completeness.of(getInt(8)), confidence = Confidence.of(getInt(9)),
         fieldCount = getInt(10), createdAt = getLong(11), updatedAt = getLong(12),
-        commentCount = getInt(13), activityCount = getInt(14), mediaCount = getInt(15),
+        lastSeenAt = getLong(13),
+        commentCount = getInt(14), activityCount = getInt(15), mediaCount = getInt(16),
     )
 
     /* ---------------- 搜索索引与媒体中心 ---------------- */
@@ -1395,4 +1422,4 @@ private const val FRIEND_COLS =
     "accountId,uin,nickname,remark,avatar,groups,relation,firstSeenAt,lastSeenAt,addedAt,goneState,goneSinceAt,snapshots,misses,tags,note"
 
 private const val MOMENT_COLS =
-    "m.id,m.accountId,m.tid,m.authorUin,m.content,m.createTime,m.location,m.state,m.completeness,m.confidence,m.fieldCount,m.createdAt,m.updatedAt"
+    "m.id,m.accountId,m.tid,m.authorUin,m.content,m.createTime,m.location,m.state,m.completeness,m.confidence,m.fieldCount,m.createdAt,m.updatedAt,m.lastSeenAt"

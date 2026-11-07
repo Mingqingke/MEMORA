@@ -201,6 +201,7 @@ object TaskEngine {
         }
         db.updateTask(task.id, note = "正在准备归档")
 
+        var currentOk = false
         for (step in plan) {
             if (cancelled.contains(task.id)) return
             while (paused.contains(task.id)) delay(400)
@@ -209,6 +210,13 @@ object TaskEngine {
             if (outcome == StreamOutcome.AUTH) { authBlocked = true; break }
             if (outcome == StreamOutcome.FAILED) anyFailure = true
             if (outcome == StreamOutcome.OK) anySuccess = true
+            if (step.sourceId == "current" && outcome == StreamOutcome.OK) currentOk = true
+        }
+
+        // 只有当前列表这一轮完整跑完，才敢把「这次没出现」标成历史已发现
+        if (currentOk && !authBlocked) {
+            val missed = runCatching { db.markMissingSince(task.accountId, task.createdAt) }.getOrDefault(0)
+            if (missed > 0) db.log("INFO", "archive", "本次未再出现 $missed 条，已保留为历史记录")
         }
 
         // 内容与媒体分开：内容先落库，媒体最后补，媒体失败不影响内容归档结果

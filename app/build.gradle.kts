@@ -24,9 +24,9 @@ android {
         applicationId = "com.memora.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 35
+        versionCode = 36
         buildConfigField("String", "BUILD_TIME", "\"2026-10-31\"")
-        versionName = "1.2.41"
+        versionName = "1.2.42"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 

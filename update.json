@@ -1,8 +1,8 @@
 {
-  "versionCode": 35,
-  "versionName": "1.2.41",
-  "notes": ["适配 Android 17", "更新检查更快"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.41/MEMORA-v1.2.41.apk",
+  "versionCode": 36,
+  "versionName": "1.2.42",
+  "notes": ["保留历史快照 不再把没扫到当成删除", "互动不再算作本人说说"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.42/MEMORA-v1.2.42.apk",
   "size": 12049378,
-  "sha256": "82261e9ad48d1b52eb6a2afdeaf8153499ca8f0fba0b51f074f1ff87e373fe30"
+  "sha256": "111106bd58ced651801e98b4a6e20cf7628ac4c6e9d8594ef3066c1cf24d96ee"
 }

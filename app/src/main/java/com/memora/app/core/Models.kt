@@ -2,6 +2,18 @@ package com.memora.app.core
 
 /* ============ 领域模型：恢复状态、完整度、可信度全部是独立维度 ============ */
 
+/** 证据等级：A 明确 B 强关联 C 弱线索 D 无证据 */
+enum class EvidenceLevel(val label: String, val note: String) {
+    A("明确", "来源直接记录删除或来自本人授权快照"),
+    B("强关联", "独立来源命中同一动态 ID 且归属本人"),
+    C("弱线索", "只有部分互动或摘要 归属未定"),
+    D("无证据", "本次未检索到 不能推断删除");
+
+    companion object {
+        fun of(name: String?): EvidenceLevel = entries.firstOrNull { it.name == name } ?: D
+    }
+}
+
 enum class RecoveryState(val label: String, val note: String) {
     CURRENT("当前可见", "仍在当前可访问列表中"),
     RECYCLE_BIN("回收站", "来自官方回收站入口"),
@@ -11,6 +23,7 @@ enum class RecoveryState(val label: String, val note: String) {
     LOCAL_COPY("本地副本", "来自用户导入的旧备份"),
     FRIEND_COPY("好友侧副本", "来自有权访问的好友空间"),
     INFERRED("推断重建", "由多条证据交叉推断"),
+    HISTORICAL_MISSING("历史已发现", "上次可见 本次未找到"),
     UNKNOWN("状态未知", "证据不足 无法判断"),
     UNAVAILABLE("未找到", "已扫描来源中均无记录");
 
@@ -121,6 +134,7 @@ data class Moment(
     val fieldCount: Int,
     val createdAt: Long,
     val updatedAt: Long,
+    val lastSeenAt: Long = 0,
     val commentCount: Int = 0,
     val activityCount: Int = 0,
     val mediaCount: Int = 0,

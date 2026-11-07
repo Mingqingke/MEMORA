@@ -380,4 +380,24 @@ class CoreLogicTest {
         assertEquals("clue", r.items[0].kind)
         assertTrue(r.items[0].tid.startsWith("gb:"))
     }
+
+    /* -------- 归属判定：别人的互动不能当本人说说 -------- */
+
+    @Test
+    fun foreign_author_is_only_a_clue() {
+        val id = com.memora.app.core.recovery.Identity
+        assertTrue(id.treatAsClue("post", "20002", "10001", "related"))
+        assertTrue(id.treatAsClue("post", "", "10001", "related"))
+        assertTrue(id.treatAsClue("clue", "10001", "10001", "current"))
+        assertFalse(id.treatAsClue("post", "10001", "10001", "current"))
+        assertFalse(id.isForeign("", "10001"))
+        assertTrue(id.isForeign("20002", "10001"))
+    }
+
+    @Test
+    fun evidence_levels_roundtrip() {
+        assertEquals(com.memora.app.core.EvidenceLevel.A, com.memora.app.core.EvidenceLevel.of("A"))
+        assertEquals(com.memora.app.core.EvidenceLevel.D, com.memora.app.core.EvidenceLevel.of("zzz"))
+        assertEquals("历史已发现", com.memora.app.core.RecoveryState.HISTORICAL_MISSING.label)
+    }
 }

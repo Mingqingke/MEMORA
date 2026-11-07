@@ -80,7 +80,7 @@ object Ingest {
                     content = rec.content, createTime = rec.createTime, location = rec.location,
                     state = RecoveryState.UNKNOWN, completeness = Completeness.CLUE,
                     confidence = Confidence.LOW, sourceId = sourceId,
-                    fields = fieldsOf(rec), now = now,
+                    fields = fieldsOf(rec), now = now, lastSeenAt = now,
                 )
                 if (existed) duplicates++ else inserted++
                 affected.add(rec.tid)
