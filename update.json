@@ -1,8 +1,8 @@
 {
-  "versionCode": 45,
-  "versionName": "1.2.51",
-  "notes": ["液态玻璃默认关闭 崩溃过自动关闭", "滑块不再放大", "更新检查超时放宽"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.51/MEMORA-v1.2.51.apk",
+  "versionCode": 46,
+  "versionName": "1.2.52",
+  "notes": ["登录改用桌面 UA", "去掉登录后在页面里来回跳转"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.52/MEMORA-v1.2.52.apk",
   "size": 12131298,
-  "sha256": "0218b65ccefefbd6be4eba9a5cc7cebd829d49d0abf78606413fde3c42d80798"
+  "sha256": "37b86c9106e0be4bf5c300369e3d4910f046884a8eabbe23ec0de50d71c5b0ac"
 }

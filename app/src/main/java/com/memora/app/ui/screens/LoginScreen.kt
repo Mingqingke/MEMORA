@@ -221,11 +221,13 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
                             settings.loadWithOverviewMode = true
                             settings.useWideViewPort = true
                             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            // 桌面 UA：i.qq.com 的桌面登录流程在验证通过后才会跳转空间并下发 p_skey
                             settings.userAgentString =
-                                "Mozilla/5.0 (Linux; Android 13; MI 9) AppleWebKit/537.36 " +
-                                    "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+                                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                             CookieManager.getInstance().setAcceptCookie(true)
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                            CookieManager.getInstance().flush()
                             webChromeClient = object : WebChromeClient() {}
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
@@ -234,6 +236,7 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
                                 }
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     if (busy || stage == Stage.DONE) return
+                                    runCatching { CookieManager.getInstance().flush() }
                                     val cookie = harvestCookie()
                                     val uin = SessionStore.uinFromCookie(cookie)
                                     val hasPsKey = cookie.contains("p_skey=")
@@ -241,12 +244,12 @@ fun LoginScreen(onBack: () -> Unit, onDone: () -> Unit) {
                                     when {
                                         uin.isBlank() -> status = "在页面里扫码或登录"
                                         hasPsKey -> { status = "已登录 正在连接"; connect() }
-                                        hasSkey && !spaceOpened -> {
+                                        hasSkey -> {
+                                            // 不再在页面里来回跳转（那会掉回登录页），交给 bootstrap 换 p_skey
                                             spaceOpened = true
-                                            status = "正在打开空间"
-                                            view?.loadUrl("https://user.qzone.qq.com/$uin")
+                                            status = "正在建立会话"
+                                            connect()
                                         }
-                                        hasSkey -> { status = "正在建立会话"; connect() }
                                         else -> Unit
                                     }
                                 }
