@@ -339,16 +339,13 @@ class CoreLogicTest {
 
     @Test
     fun pav_all_reads_deleted_mood_from_card() {
-        val html = """<div class="feed"><div class="txt-box">2022 年的旧说说正文</div>""" +
-            """<div class="mod-comments">张三: 好怀念</div>""" +
-            """<a href="//user.qzone.qq.com/10001/mood/0a1b2c3d.1">x</a></div>"""
+        val html = """<li class="f-single" data-key="fct_10001_0_0_0_1_1">""" +
+            """<a href="//user.qzone.qq.com/10001/mood/0a1b2c3d">查看说说</a>""" +
+            """<p class="txt-box-title">青：2022 年的一条旧说说</p></li>"""
         val body = "_Callback(" + org.json.JSONObject().apply {
             put("code", 0)
             put("data", org.json.JSONArray().put(org.json.JSONObject().apply {
-                put("uin", "10001")
-                put("nickname", "青")
-                put("feedstime", 1_650_000_000)
-                put("html", html)
+                put("uin", "10001"); put("feedstime", 1_650_000_000); put("html", html)
             }))
         }.toString() + ");"
         val r = com.memora.app.core.net.QzoneApi.parsePavAll(body, 0, 10)
@@ -358,11 +355,9 @@ class CoreLogicTest {
         assertTrue(r.items[0].content.contains("2022"))
     }
 
-    /* -------- 线索不得冒充正文 -------- */
-
-    @Test
-    fun pav_all_marks_records_as_clue() {
-        val html = """<div class="txt-box">张三评论了你的说说</div><a href="//user.qzone.qq.com/10001/mood/0a1b2c3d.1">x</a>"""
+@Test
+    fun pav_all_without_title_produces_nothing() {
+        val html = """<div class="txt-box">只有互动摘要 没有正式标题</div>"""
         val body = "_Callback(" + org.json.JSONObject().apply {
             put("code", 0)
             put("data", org.json.JSONArray().put(org.json.JSONObject().apply {
@@ -370,10 +365,10 @@ class CoreLogicTest {
             }))
         }.toString() + ");"
         val r = com.memora.app.core.net.QzoneApi.parsePavAll(body, 0, 10)
-        assertEquals("clue", r.items[0].kind)
+        assertEquals(0, r.items.size)
     }
 
-    @Test
+@Test
     fun guestbook_marks_records_as_clue() {
         val body = """{"code":0,"data":{"commentList":[{"commentId":"9","uin":"10002","content":"留言内容","datetime":"2022-05-01 10:00:00"}]}}"""
         val r = com.memora.app.core.net.QzoneApi.parseGuestbook(body, 0, 20)
@@ -411,5 +406,39 @@ class CoreLogicTest {
             com.memora.app.core.Updater.parseVersionCode("2.10.0") >
                 com.memora.app.core.Updater.parseVersionCode("2.9.0")
         )
+    }
+
+    /* -------- 与我相关：互动事件与说说本体必须分开 -------- */
+
+    @Test
+    fun pav_all_splits_events_from_posts() {
+        val html = """
+          <ul>
+            <li class="f-single" data-key="fct_20001_217_3_1627745220_1_1">
+              <a class="f-name">好友甲</a>
+              <a href="//user.qzone.qq.com/10001/mood/abc12345.1">查看说说</a>
+              <p class="txt-box-title">本人：一条历史说说</p>
+            </li>
+            <li class="f-single" data-key="fct_30001_311_14_1627745320_1_1">
+              <a class="f-name">好友乙</a>
+              <a href="//user.qzone.qq.com/10001/mood/abc12345">查看说说</a>
+              <p class="txt-box-title">本人：一条历史说说</p>
+              <div class="comments-content">好友乙：这是评论正文</div>
+            </li>
+          </ul>
+        """.trimIndent()
+        val body = "_Callback(" + org.json.JSONObject().apply {
+            put("code", 0)
+            put("data", org.json.JSONArray().put(org.json.JSONObject().apply {
+                put("uin", "10001"); put("feedstime", 1_627_745_200); put("html", html)
+            }))
+        }.toString() + ");"
+        val r = com.memora.app.core.net.QzoneApi.parsePavAll(body, 0, 10)
+        assertEquals(0, r.items.size)          // 互动卡片不能变成说说
+        assertEquals(2, r.activities.size)
+        assertEquals("like", r.activities[0].type)
+        assertEquals("comment", r.activities[1].type)
+        assertEquals("abc12345", r.activities[0].targetTid)
+        assertTrue(r.activities[1].content.contains("这是评论正文"))
     }
 }

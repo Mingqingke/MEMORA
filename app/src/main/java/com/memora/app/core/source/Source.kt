@@ -70,6 +70,7 @@ object DiscoverSource : ArchiveSource {
         val page = cursor?.toIntOrNull() ?: 0
         val offset = page * 10
         val merged = LinkedHashMap<String, MomentRec>()
+        val acts = ArrayList<ActivityRec>()
         var okCount = 0
         var lastStatus = SourceStatus.EMPTY
         kotlinx.coroutines.coroutineScope {
@@ -85,10 +86,12 @@ object DiscoverSource : ArchiveSource {
                 if (parsed.items.isNotEmpty()) okCount++
                 lastStatus = parsed.status
                 parsed.items.forEach { rec -> merged.putIfAbsent(rec.tid, rec) }
+                parsed.activities.forEach { a -> acts.add(a) }
             }
         }
         val items = merged.values.toList()
         return FetchedPage(
+            activities = acts,
             status = when {
                 items.isNotEmpty() -> SourceStatus.AVAILABLE
                 okCount > 0 -> SourceStatus.EMPTY
@@ -123,6 +126,7 @@ object RelatedFeedSource : ArchiveSource {
             status = parsed.status,
             detail = parsed.detail,
             moments = parsed.items,
+            activities = parsed.activities,
             nextCursor = if (parsed.hasMore) parsed.nextOffset.toString() else null,
             hasMore = parsed.hasMore,
             rawCount = parsed.rawCount,

@@ -1,8 +1,8 @@
 {
-  "versionCode": 39,
-  "versionName": "1.2.45",
-  "notes": ["底栏拖动改用统一手势", "玻璃更透 能看到背景", "卡片与顶栏玻璃"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.45/MEMORA-v1.2.45.apk",
+  "versionCode": 40,
+  "versionName": "1.2.46",
+  "notes": ["互动与说说彻底分开", "历史卡片按事件类型解析"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.46/MEMORA-v1.2.46.apk",
   "size": 12082146,
-  "sha256": "bd5aaab9781c621471bd044560456d3de0ca030299418b7f555d31ad986554af"
+  "sha256": "f9f37190ca168c5e696dde4040a4da3dbd354cd4c1e693fee7cb318e1e016571"
 }

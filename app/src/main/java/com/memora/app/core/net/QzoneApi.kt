@@ -31,6 +31,7 @@ data class ParseResult<T>(
     val nextOffset: Int = 0,
     val rawCount: Int = 0,
     val unparsed: Int = 0,
+    val activities: List<ActivityRec> = emptyList(),
 )
 
 /**
@@ -88,47 +89,113 @@ object QzoneApi {
         return Net.get(url, ctx.cookie, referer(ctx))
     }
 
+    /**
+     * 「与我相关」历史卡片。
+     *
+     * 卡片结构（实测与 QQ-Zone-Restore-Archive 源码一致）：
+     * <li class="f-single" data-key="fct_{actor}_{family}_{subtype}_{time}_...">
+     *   <a class="f-name">昵称</a>
+     *   <a href="//user.qzone.qq.com/{owner}/mood/{cellid}">查看说说</a>
+     *   <p class="txt-box-title">作者：正文</p>
+     *   <div class="comments-content">评论正文</div>
+     * </li>
+     *
+     * family: 217 点赞 / 311 或 2 评论 / 334 留言 / 333 系统通知。
+     * 互动卡片只产出事件，不产出「说说本体」。
+     */
     fun parsePavAll(body: String, offset: Int, pageSize: Int): ParseResult<MomentRec> {
         val root = Net.json(body)
             ?: return ParseResult(SourceStatus.PARSE_ERROR, detail = "响应不是 JSON" + snippet(body))
         if (isAuthError(root)) return ParseResult(SourceStatus.AUTH_REQUIRED, detail = authMessage(root))
         val arr = jsonArray(root, "data", "feeds", "list")
             ?: return ParseResult(SourceStatus.PARSE_ERROR, detail = "未找到与我相关列表" + snippet(body))
-        val out = ArrayList<MomentRec>()
+
+        val moments = ArrayList<MomentRec>()
+        val acts = ArrayList<ActivityRec>()
         var unparsed = 0
+
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
             val html = o.optString("html", "")
-            val cell = moodCellId(html)
-            val fallbackId = "pav:" + o.optString("uin") + ":" + o.optString("feedstime")
-            val tid = if (cell.isNotBlank()) baseTid(cell) else fallbackId
-            val text = if (html.isBlank()) "" else runCatching {
-                org.jsoup.Jsoup.parse(html).select("div.txt-box").text()
-            }.getOrDefault("")
-            val comments = if (html.isBlank()) "" else runCatching {
-                org.jsoup.Jsoup.parse(html).select("div.mod-comments").text()
-            }.getOrDefault("")
-            val content = clean(text.ifBlank { comments })
-            val t = time(o.opt("feedstime") ?: o.opt("time")) ?: if (cell.isNotBlank()) moodPublishedAt(cell) else null
-            if (tid.isBlank() || (content.isBlank() && cell.isBlank())) { unparsed++; continue }
-            out.add(
-                MomentRec(
-                    tid = tid,
-                    authorUin = host0(html).ifBlank { "" },
-                    content = content,
-                    createTime = t,
-                    kind = "clue",
-                )
-            )
+            if (html.isBlank()) { unparsed++; continue }
+            val doc = runCatching { org.jsoup.Jsoup.parse(html) }.getOrNull() ?: run { unparsed++; continue }
+            val cards = doc.select("li.f-single")
+            val list = if (cards.isEmpty()) listOf(doc) else cards
+            var handled = false
+            for (card in list) {
+                val key = card.attr("data-key")
+                val parts = key.split("_")
+                val actor = parts.getOrNull(1)?.takeIf { it.all { c -> c.isDigit() } }.orEmpty()
+                val family = parts.getOrNull(2)?.toIntOrNull() ?: 0
+                val subtype = parts.getOrNull(3)?.toIntOrNull() ?: 0
+                val ts = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+                val actorName = card.selectFirst("a.f-name")?.text().orEmpty()
+                val href = card.selectFirst("a[href*=mood]")?.attr("href").orEmpty()
+                val cell = moodCellId(href)
+                val tid = if (cell.isNotBlank()) baseTid(cell) else ""
+                val owner = Regex("user\\.qzone\\.qq\\.com/(\\d{5,12})/mood/").find(href)?.groupValues?.getOrNull(1).orEmpty()
+                val title = card.selectFirst("p.txt-box-title")?.text().orEmpty()
+                val body2 = if (title.contains("：")) title.substringAfter("：").trim() else title.trim()
+                val comment = card.selectFirst("div.comments-content")?.text().orEmpty()
+                val type = when (family) {
+                    217 -> "like"
+                    2, 311 -> "comment"
+                    334 -> "guestbook"
+                    else -> ""
+                }
+                if (type.isNotEmpty()) {
+                    if (tid.isNotBlank() && actor.isNotBlank()) {
+                        acts.add(
+                            ActivityRec(
+                                id = "$actor:$tid:$type:$ts:$subtype",
+                                actorUin = actor,
+                                actorName = actorName,
+                                type = type,
+                                content = when (type) {
+                                    "comment" -> comment
+                                    "guestbook" -> body2
+                                    else -> ""
+                                },
+                                time = if (ts > 0) ts * 1000 else null,
+                                targetTid = tid,
+                            )
+                        )
+                        handled = true
+                    }
+                    continue
+                }
+                // 说说本体（没有事件 family）：作者是空间主人
+                if (tid.isNotBlank() && body2.isNotBlank()) {
+                    moments.add(
+                        MomentRec(
+                            tid = tid,
+                            authorUin = owner,
+                            content = body2,
+                            createTime = moodPublishedAt(cell),
+                            kind = "post",
+                        )
+                    )
+                    handled = true
+                }
+            }
+            if (!handled) unparsed++
+        }
+
+        val emptyArray = (root.opt("data") as? JSONArray)?.length() == 0
+        val status = when {
+            moments.isNotEmpty() || acts.isNotEmpty() -> SourceStatus.AVAILABLE
+            emptyArray -> SourceStatus.EMPTY
+            else -> SourceStatus.PARSE_ERROR
         }
         return ParseResult(
-            status = if (out.isEmpty()) SourceStatus.EMPTY else SourceStatus.AVAILABLE,
-            items = out,
-            detail = if (out.isEmpty() && unparsed > 0) "与我相关解析失败 $unparsed 条" else "",
+            status = status,
+            items = moments,
+            detail = if (status == SourceStatus.PARSE_ERROR) "与我相关结构未识别" + snippet(body) else "",
             hasMore = arr.length() > 0,
             nextOffset = offset + pageSize,
             rawCount = arr.length(),
             unparsed = unparsed,
+            activities = acts,
         )
     }
 
