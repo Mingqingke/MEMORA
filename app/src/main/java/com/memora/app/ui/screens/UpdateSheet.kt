@@ -70,10 +70,24 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
             Text(
                 listOfNotNull(
                     if (info.size > 0) "%.1f MB".format(info.size / 1024f / 1024f) else null,
-                    if (info.sha256.isNotBlank()) "SHA-256 校验" else null,
-                ).joinToString(" · "),
+                    if (info.sha256.isNotBlank()) "SHA-256" else null,
+                    "GitHub Release",
+                ).joinToString("  ·  "),
                 fontSize = 11.sp, color = c.secondary,
             )
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("当前", fontSize = 10.5.sp, color = c.secondary)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    com.memora.app.BuildConfig.VERSION_NAME,
+                    fontSize = 11.5.sp, color = c.ink,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("→", fontSize = 11.sp, color = c.secondary)
+                Spacer(Modifier.width(10.dp))
+                Text(info.versionName, fontSize = 11.5.sp, color = c.ink, fontWeight = FontWeight.Medium)
+            }
             Spacer(Modifier.height(14.dp))
             BoxCard(corner = 16) {
                 Text("更新内容", fontSize = 11.sp, color = c.secondary, fontWeight = FontWeight.Medium)

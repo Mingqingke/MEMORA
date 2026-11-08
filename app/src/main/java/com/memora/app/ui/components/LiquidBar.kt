@@ -3,6 +3,7 @@ package com.memora.app.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -125,13 +126,7 @@ fun LiquidBar(
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) {
-                                if (!moved) {
-                                    val idx = (startX / cell).toInt().coerceIn(0, items.size - 1)
-                                    if (idx != current) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onSelect(idx)
-                                    }
-                                } else {
+                                if (moved) {
                                     val target = dragValue.roundToInt().coerceIn(0, items.size - 1)
                                     val from = dragValue
                                     dragging = false
@@ -168,7 +163,8 @@ fun LiquidBar(
             // 选中滑块：同样用玻璃，拖动时横向拉伸
             val dens = androidx.compose.ui.platform.LocalDensity.current
             val cellPxV = with(dens) { cellW.toPx() }
-            val thumbPxV = cellPxV * 0.82f * (1f + stretch)
+            val pressScale = if (dragging) 1.06f else 1.0f
+            val thumbPxV = cellPxV * 0.82f * (1f + stretch) * pressScale
             val edge = 2f * dens.density
             val leftPxV = ((pos + 0.5f) * cellPxV - thumbPxV / 2f)
                 .coerceIn(edge, (cellPxV * items.size - thumbPxV - edge).coerceAtLeast(edge))
@@ -189,8 +185,13 @@ fun LiquidBar(
                                 shape = { RoundedCornerShape((barHeight - 14.dp) / 2) },
                                 effects = {
                                     vibrancy()
-                                    blur(8.dp.toPx())
-                                    lens(22.dp.toPx(), 22.dp.toPx(), depthEffect = true, chromaticAberration = true)
+                                    blur((if (dragging) 10.dp else 8.dp).toPx())
+                                    lens(
+                                        (if (dragging) 30.dp else 22.dp).toPx(),
+                                        (if (dragging) 30.dp else 22.dp).toPx(),
+                                        depthEffect = true,
+                                        chromaticAberration = true,
+                                    )
                                 },
                                 highlight = { Highlight(width = 1.dp, alpha = 0.85f) },
                                 shadow = { Shadow(radius = 10.dp, alpha = 0.20f) },
@@ -211,7 +212,14 @@ fun LiquidBar(
                 items.forEachIndexed { i, (label, icon) ->
                     val selected = current == i
                     Column(
-                        Modifier.width(cellW),
+                        Modifier
+                            .width(cellW)
+                            .clickable {
+                                if (i != current) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSelect(i)
+                                }
+                            },
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         androidx.compose.material3.Icon(
