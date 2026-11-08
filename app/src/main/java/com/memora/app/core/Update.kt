@@ -28,7 +28,7 @@ data class UpdateInfo(
 sealed interface UpdateCheck {
     data class Available(val info: UpdateInfo) : UpdateCheck
     data class Latest(val versionName: String) : UpdateCheck
-    data class Failed(val reason: String) : UpdateCheck
+    data class Failed(val reason: String, val detail: String = "") : UpdateCheck
     data class NotConfigured(val reason: String) : UpdateCheck
 }
 
@@ -39,54 +39,182 @@ sealed interface UpdateCheck {
 object Updater {
 
     private val DEFAULT_SOURCES = listOf(
+        "https://ghproxy.net/https://raw.githubusercontent.com/Mingqingke/MEMORA/main/update.json",
         "https://raw.githubusercontent.com/Mingqingke/MEMORA/main/update.json",
         "https://cdn.jsdelivr.net/gh/Mingqingke/MEMORA@main/update.json",
-        "https://ghproxy.net/https://raw.githubusercontent.com/Mingqingke/MEMORA/main/update.json",
     )
+
+    private const val RELEASE_API = "https://api.github.com/repos/Mingqingke/MEMORA/releases/latest"
+    private const val PER_SOURCE_TIMEOUT_MS = 3_500L
+    private const val TOTAL_TIMEOUT_MS = 6_000L
 
     fun sources(context: Context): List<String> {
         val custom = Prefs.updateSource.value.trim()
         return if (custom.isNotBlank()) listOf(custom) + DEFAULT_SOURCES else DEFAULT_SOURCES
     }
 
-    suspend fun check(context: Context): UpdateCheck = withContext(Dispatchers.IO) {
-        val sources = sources(context)
-        if (sources.isEmpty()) return@withContext UpdateCheck.NotConfigured("没有配置更新源")
-        var lastReason = "没有可用的更新源"
-        // 多个源并发查，谁先回来算谁，最后仍取版本号最大的那个
-        val results = kotlinx.coroutines.coroutineScope {
-            sources.map { url ->
-                async {
-                    val res = runCatching {
-                        kotlinx.coroutines.withTimeout(6_000L) {
-                            Net.get(url, "", "https://memora.app/", timeoutSeconds = 6)
-                        }
-                    }.getOrNull()
-                    if (res == null || !res.ok || res.body.isBlank()) null
-                    else runCatching { parse(res.body) }.getOrNull()
-                }
-            }.awaitAll()
-        }
-        val best = results.filterNotNull().maxByOrNull { it.versionCode }
-        if (best == null) return@withContext UpdateCheck.Failed(lastReason)
-        Prefs.setLastCheckAt(System.currentTimeMillis())
-        if (best.versionCode <= BuildConfig.VERSION_CODE) UpdateCheck.Latest(best.versionName)
-        else UpdateCheck.Available(best)
+    /** 版本号解析：v1.2.42 / 1.2.42 -> 10242，用于缺少 versionCode 时兜底。 */
+    fun parseVersionCode(name: String): Int {
+        val m = Regex("(\\d+)\\.(\\d+)\\.(\\d+)").find(name) ?: return 0
+        val (a, b, c) = m.destructured
+        return (a.toIntOrNull() ?: 0) * 10000 + (b.toIntOrNull() ?: 0) * 100 + (c.toIntOrNull() ?: 0)
     }
 
-    private fun parse(body: String): UpdateInfo {
-        val o = JSONObject(body)
-        val notes = o.optJSONArray("notes")?.let { arr ->
-            (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
-        } ?: listOfNotNull(o.optString("notes").takeIf { it.isNotBlank() })
-        return UpdateInfo(
-            versionCode = o.optInt("versionCode", 0),
-            versionName = o.optString("versionName", ""),
-            notes = notes,
-            apkUrl = o.optString("apk", ""),
-            size = o.optLong("size", 0),
-            sha256 = o.optString("sha256", ""),
+    private data class Fetched(
+        val source: String,
+        val code: Int,
+        val ms: Long,
+        val versionName: String = "",
+        val versionCode: Int = 0,
+        val apkUrl: String = "",
+        val size: Long = 0,
+        val sha: String = "",
+        val notes: List<String> = emptyList(),
+        val error: String = "",
+    )
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun etagKey(url: String) = "etag_" + url.hashCode()
+
+    /** GitHub 正式 Release：唯一的权威版本来源，失败时才回落 JSON。 */
+    private fun fetchRelease(context: Context): Fetched {
+        val sp = context.getSharedPreferences("updater", Context.MODE_PRIVATE)
+        val key = etagKey(RELEASE_API)
+        val cachedEtag = sp.getString(key + "_etag", "").orEmpty()
+        val cachedBody = sp.getString(key + "_body", "").orEmpty()
+        val headers = if (cachedEtag.isNotBlank()) mapOf("If-None-Match" to cachedEtag) else emptyMap()
+        val started = System.currentTimeMillis()
+        val res = Net.getWithHeaders(RELEASE_API, headers, 6)
+        val ms = System.currentTimeMillis() - started
+        if (res.code == 304 && cachedBody.isNotBlank()) {
+            return parseRelease(cachedBody, "release-api(cache)", 304, ms)
+        }
+        if (!res.ok) {
+            val reason = when (res.code) {
+                403, 429 -> "GitHub 限流"
+                404 -> "Release 不存在"
+                0 -> "网络不可用"
+                else -> "HTTP ${res.code}"
+            }
+            return Fetched("release-api", res.code, ms, error = reason)
+        }
+        if (res.etag.isNotBlank()) {
+            sp.edit().putString(key + "_etag", res.etag).putString(key + "_body", res.body).apply()
+        }
+        return parseRelease(res.body, "release-api", res.code, ms)
+    }
+
+    private fun parseRelease(body: String, source: String, code: Int, ms: Long): Fetched {
+        val o = runCatching { JSONObject(body) }.getOrNull()
+            ?: return Fetched(source, code, ms, error = "更新信息格式不正确")
+        if (o.optBoolean("draft", false)) return Fetched(source, code, ms, error = "最新发布仍是草稿")
+        if (o.optBoolean("prerelease", false)) return Fetched(source, code, ms, error = "只找到预发布版本")
+        val tag = o.optString("tag_name", "")
+        val assets = o.optJSONArray("assets")
+        val apk = assets?.let { arr ->
+            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                .firstOrNull { it.optString("name").endsWith(".apk") }
+        }
+        return Fetched(
+            source = source,
+            code = code,
+            ms = ms,
+            versionName = o.optString("name", tag).ifBlank { tag },
+            versionCode = parseVersionCode(tag),
+            apkUrl = apk?.optString("browser_download_url", "").orEmpty(),
+            size = apk?.optLong("size", 0) ?: 0,
+            sha = apk?.optString("digest", "").orEmpty().removePrefix("sha256:"),
+            notes = o.optString("body", "").lines().map { it.trim() }.filter { it.isNotBlank() }.take(8),
         )
+    }
+
+    private fun fetchJson(context: Context, url: String): Fetched {
+        val started = System.currentTimeMillis()
+        val res = runCatching { Net.get(url, "", "https://memora.app/", timeoutSeconds = 4) }.getOrNull()
+        val ms = System.currentTimeMillis() - started
+        if (res == null || !res.ok || res.body.isBlank()) {
+            return Fetched(url, res?.code ?: 0, ms, error = if (res == null) "网络不可用" else "HTTP ${res.code}")
+        }
+        return runCatching {
+            val o = JSONObject(res.body)
+            val notes = o.optJSONArray("notes")?.let { arr ->
+                (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
+            } ?: emptyList()
+            val name = o.optString("versionName", "")
+            Fetched(
+                source = url, code = res.code, ms = ms,
+                versionName = name,
+                versionCode = o.optInt("versionCode", parseVersionCode(name)),
+                apkUrl = o.optString("apk", ""),
+                size = o.optLong("size", 0),
+                sha = o.optString("sha256", ""),
+                notes = notes,
+            )
+        }.getOrElse { Fetched(url, res.code, ms, error = "更新信息格式不正确") }
+    }
+
+    private fun recordDiagnostics(results: List<Fetched>, chosen: UpdateInfo?, verdict: String) {
+        val line = buildString {
+            append(java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date()))
+            append(" 本地 ").append(BuildConfig.VERSION_NAME).append("/").append(BuildConfig.VERSION_CODE)
+            results.forEach { r ->
+                append("\n· ").append(
+                    when {
+                        r.source.startsWith("release") -> "Release"
+                        r.source.contains("jsdelivr") -> "jsDelivr"
+                        r.source.contains("ghproxy") -> "ghproxy"
+                        r.source.contains("raw.githubusercontent") -> "raw"
+                        else -> "自定义"
+                    }
+                )
+                append(" ").append(r.code).append(" ").append(r.ms).append("ms")
+                if (r.versionCode > 0) append(" → ").append(r.versionName).append("(").append(r.versionCode).append(")")
+                if (r.error.isNotBlank()) append(" ✕ ").append(r.error)
+            }
+            if (chosen != null) append("\n结论 ").append(verdict).append(" ").append(chosen.versionName)
+        }
+        Prefs.setUpdateDiag(line)
+    }
+
+    suspend fun check(context: Context): UpdateCheck = withContext(Dispatchers.IO) {
+        val urls = sources(context)
+        val results = kotlinx.coroutines.coroutineScope {
+            val jobs = buildList {
+                add(async { runCatching { fetchRelease(context) }.getOrElse { Fetched("release-api", 0, 0, error = "解析失败") } })
+                urls.forEach { url -> add(async { runCatching { fetchJson(context, url) }.getOrElse { Fetched(url, 0, 0, error = "请求失败") } }) }
+            }
+            kotlinx.coroutines.withTimeoutOrNull(TOTAL_TIMEOUT_MS) { jobs.awaitAll() } ?: emptyList()
+        }
+        val release = results.firstOrNull { it.source.startsWith("release") }
+        val jsons = results.filter { !it.source.startsWith("release") && it.versionCode > 0 }
+        val bestJson = jsons.maxByOrNull { it.versionCode }
+
+        // versionCode 以清单为准；清单缺失时退回 tag 解析
+        val code = bestJson?.versionCode?.takeIf { it > 0 }
+            ?: release?.versionCode?.takeIf { it > 0 }
+            ?: 0
+        val name = bestJson?.versionName?.takeIf { it.isNotBlank() }
+            ?: release?.versionName.orEmpty()
+        val apk = release?.apkUrl?.takeIf { it.startsWith("http") }
+            ?: bestJson?.apkUrl.orEmpty()
+        val sha = release?.sha?.takeIf { it.length == 64 } ?: bestJson?.sha.orEmpty()
+        val size = release?.size?.takeIf { it > 0 } ?: bestJson?.size ?: 0
+        val notes = bestJson?.notes?.takeIf { it.isNotEmpty() } ?: release?.notes ?: emptyList()
+
+        if (code <= 0 || name.isBlank()) {
+            val reason = results.firstOrNull { it.error.isNotBlank() }?.error ?: "没有可用的更新源"
+            recordDiagnostics(results, null, "失败")
+            return@withContext UpdateCheck.Failed(reason, results.joinToString("；") { it.source + ":" + (it.error.ifBlank { it.code.toString() }) })
+        }
+        val info = UpdateInfo(code, name, notes, apk, size, sha)
+        Prefs.setLastCheckAt(System.currentTimeMillis())
+        if (code <= BuildConfig.VERSION_CODE) {
+            recordDiagnostics(results, info, "已是最新")
+            UpdateCheck.Latest(name)
+        } else {
+            recordDiagnostics(results, info, "发现更新")
+            UpdateCheck.Available(info)
+        }
     }
 
     suspend fun download(

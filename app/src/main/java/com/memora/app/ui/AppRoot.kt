@@ -36,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -84,6 +85,7 @@ import com.memora.app.ui.screens.SettingsTaskNetworkScreen
 import com.memora.app.ui.screens.TaskDetailScreen
 import com.memora.app.ui.screens.TasksScreen
 import com.memora.app.ui.screens.UpdateDialog
+import com.memora.app.ui.components.LiquidBar
 import com.memora.app.ui.theme.LocalMemora
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -245,8 +247,20 @@ fun MemoraRoot() {
                 }
             }
         } else {
+            val glassOn by com.memora.app.core.Prefs.liquidGlass.collectAsState()
             Scaffold(
-                bottomBar = { BottomBar(tab) { tab = it } },
+                bottomBar = {
+                    if (glassOn) {
+                        LiquidBar(
+                            items = TABS.map { it.label to it.icon },
+                            current = tab,
+                            onSelect = { tab = it },
+                            backdrop = null,
+                        )
+                    } else {
+                        BottomBar(tab) { tab = it }
+                    }
+                },
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })

@@ -1,8 +1,8 @@
 {
-  "versionCode": 36,
-  "versionName": "1.2.42",
-  "notes": ["保留历史快照 不再把没扫到当成删除", "互动不再算作本人说说"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.42/MEMORA-v1.2.42.apk",
-  "size": 12049378,
-  "sha256": "111106bd58ced651801e98b4a6e20cf7628ac4c6e9d8594ef3066c1cf24d96ee"
+  "versionCode": 37,
+  "versionName": "1.2.43",
+  "notes": ["更新改走 GitHub Release 接口", "液态玻璃底栏可拖动", "外观里可关闭液态玻璃"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.43/MEMORA-v1.2.43.apk",
+  "size": 12065762,
+  "sha256": "361b6b4a818290e2ce2d0abafc957799cc655c1adf3e7f983f732b5dd227005d"
 }

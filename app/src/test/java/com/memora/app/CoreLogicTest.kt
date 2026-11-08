@@ -400,4 +400,16 @@ class CoreLogicTest {
         assertEquals(com.memora.app.core.EvidenceLevel.D, com.memora.app.core.EvidenceLevel.of("zzz"))
         assertEquals("历史已发现", com.memora.app.core.RecoveryState.HISTORICAL_MISSING.label)
     }
+
+    @Test
+    fun version_code_parsing_and_compare() {
+        assertEquals(10242, com.memora.app.core.Updater.parseVersionCode("v1.2.42"))
+        assertEquals(20301, com.memora.app.core.Updater.parseVersionCode("2.3.1"))
+        assertEquals(0, com.memora.app.core.Updater.parseVersionCode("latest"))
+        // 字符串比较会认为 2.10.0 < 2.9.0，versionCode 不会
+        assertTrue(
+            com.memora.app.core.Updater.parseVersionCode("2.10.0") >
+                com.memora.app.core.Updater.parseVersionCode("2.9.0")
+        )
+    }
 }

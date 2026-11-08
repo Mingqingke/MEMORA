@@ -13,6 +13,7 @@ data class HttpResult(
     val latencyMs: Long,
     val error: String = "",
     val setCookie: List<String> = emptyList(),
+    val etag: String = "",
 ) {
     val ok: Boolean get() = error.isBlank() && code in 200..299
 }
@@ -61,6 +62,33 @@ object Net {
                     code = resp.code, body = text,
                     latencyMs = System.currentTimeMillis() - started,
                     setCookie = resp.headers.values("Set-Cookie"),
+                )
+            }
+        } catch (t: Throwable) {
+            HttpResult(0, "", System.currentTimeMillis() - started, t.javaClass.simpleName + ": " + (t.message ?: ""))
+        }
+    }
+
+    /** 带自定义头的 GET；304 时不读 body，交给调用方用缓存。 */
+    fun getWithHeaders(
+        url: String,
+        headers: Map<String, String>,
+        timeoutSeconds: Int = 8,
+    ): HttpResult {
+        val started = System.currentTimeMillis()
+        val builder = Request.Builder().url(url)
+            .header("User-Agent", "MEMORA/${com.memora.app.BuildConfig.VERSION_NAME}")
+            .header("Accept", "application/vnd.github+json, application/json")
+        headers.forEach { (k, v) -> builder.header(k, v) }
+        val callClient = client.newBuilder().callTimeout(timeoutSeconds.toLong(), TimeUnit.SECONDS).build()
+        return try {
+            callClient.newCall(builder.build()).execute().use { resp ->
+                val body = if (resp.code == 304) "" else resp.body.string()
+                HttpResult(
+                    code = resp.code, body = body,
+                    latencyMs = System.currentTimeMillis() - started,
+                    setCookie = resp.headers.values("Set-Cookie"),
+                    etag = resp.header("ETag").orEmpty(),
                 )
             }
         } catch (t: Throwable) {

@@ -456,6 +456,7 @@ fun SettingsAppearanceScreen(onBack: () -> Unit) {
     val feedback by Prefs.cardFeedback.collectAsState()
     val reduce by Prefs.reduceMotion.collectAsState()
     val premium by Prefs.premiumMaterial.collectAsState()
+    val glass by Prefs.liquidGlass.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("外观与交互", "设置立即生效", onBack = onBack)
@@ -469,6 +470,8 @@ fun SettingsAppearanceScreen(onBack: () -> Unit) {
                     ToggleRow("减少动效", "关闭转场与装饰动画 保留状态反馈", reduce) { Prefs.setReduceMotion(it) }
                     Divider()
                     ToggleRow("高级材质", "页面柔光与半透明卡片", premium) { Prefs.setPremiumMaterial(it) }
+                    Divider()
+                    ToggleRow("液态玻璃底栏", "滑块可拖动 拉伸 松手吸附", glass) { Prefs.setLiquidGlass(it) }
                 }
             }
             item {
@@ -838,6 +841,15 @@ fun AboutScreen(onBack: () -> Unit, onOpen: (Route) -> Unit) {
                     ) {
                         Text("检查更新", fontSize = 14.sp, modifier = Modifier.weight(1f))
                         Text("v${BuildConfig.VERSION_NAME}", fontSize = 11.sp, color = c.secondary)
+                    }
+                    if (note.isNotBlank()) {
+                        Text(note, fontSize = 10.5.sp, color = c.secondary, lineHeight = 15.sp,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                    }
+                    val diag by Prefs.updateDiag.collectAsState()
+                    if (diag.isNotBlank()) {
+                        Text(diag, fontSize = 9.5.sp, color = c.secondary.copy(alpha = 0.75f),
+                            lineHeight = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
                     }
                     Divider()
                     Row(

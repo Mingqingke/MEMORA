@@ -51,8 +51,10 @@ object Prefs {
 
     val updateSource = MutableStateFlow("")
     val autoCheckUpdate = MutableStateFlow(true)
+    val liquidGlass = MutableStateFlow(true)
     val ignoredVersion = MutableStateFlow(0)
     val lastCheckAt = MutableStateFlow(0L)
+    val updateDiag = MutableStateFlow("")
 
     val activeAccount = MutableStateFlow("")
 
@@ -82,8 +84,10 @@ object Prefs {
         includeFriends.value = sp.getBoolean("include_friends", true)
         updateSource.value = sp.getString("update_source", "") ?: ""
         autoCheckUpdate.value = sp.getBoolean("auto_check_update", true)
+        liquidGlass.value = sp.getBoolean("liquid_glass", true)
         ignoredVersion.value = sp.getInt("ignored_version", 0)
         lastCheckAt.value = sp.getLong("last_check_at", 0L)
+        updateDiag.value = sp.getString("update_diag", "") ?: ""
         recentSearch.value = (sp.getString("recent_search", "") ?: "")
             .split("\n").filter { it.isNotBlank() }.take(8)
     }
@@ -129,10 +133,13 @@ object Prefs {
     }
 
     fun setAutoCheckUpdate(v: Boolean) = putBool("auto_check_update", v, autoCheckUpdate)
+    fun setLiquidGlass(v: Boolean) = putBool("liquid_glass", v, liquidGlass)
     fun setIgnoredVersion(v: Int) {
         ignoredVersion.value = v
         sp.edit().putInt("ignored_version", v).apply()
     }
+
+    fun setUpdateDiag(v: String) = putStr("update_diag", v, updateDiag)
 
     fun setLastCheckAt(v: Long) {
         lastCheckAt.value = v
@@ -146,6 +153,11 @@ object Prefs {
 
     private fun putInt(key: String, v: Int, flow: MutableStateFlow<Int>) {
         flow.value = v; sp.edit().putInt(key, v).apply()
+    }
+
+    private fun putStr(key: String, v: String, flow: MutableStateFlow<String>) {
+        flow.value = v
+        sp.edit().putString(key, v).apply()
     }
 
     private fun putBool(key: String, v: Boolean, flow: MutableStateFlow<Boolean>) {
