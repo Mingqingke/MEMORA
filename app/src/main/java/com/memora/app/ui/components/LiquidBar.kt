@@ -96,14 +96,14 @@ fun LiquidBar(
                             shape = { RoundedCornerShape(barHeight / 2) },
                             effects = {
                                 vibrancy()
-                                blur(14.dp.toPx())
+                                blur(18.dp.toPx())
                                 lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true)
                             },
                             highlight = { Highlight(width = 1.dp, alpha = 0.9f) },
                             shadow = { Shadow(radius = 20.dp, alpha = 0.26f) },
                             innerShadow = { InnerShadow(radius = 10.dp, alpha = 0.14f) },
                             onDrawSurface = {
-                                drawRect(Color(0xFF101012).copy(alpha = if (c.dark) 0.24f else 0.16f))
+                                drawRect(Color(0xFF101012).copy(alpha = if (c.dark) 0.10f else 0.06f))
                             },
                         )
                     } else {
@@ -174,7 +174,12 @@ fun LiquidBar(
                 .coerceIn(edge, (cellPxV * items.size - thumbPxV - edge).coerceAtLeast(edge))
             Box(
                 Modifier
-                    .offset { androidx.compose.ui.unit.IntOffset(leftPxV.roundToInt(), 0) }
+                    .offset {
+                        androidx.compose.ui.unit.IntOffset(
+                            leftPxV.roundToInt(),
+                            (7f * dens.density).roundToInt(),
+                        )
+                    }
                     .width(with(dens) { thumbPxV.toDp() })
                     .height(barHeight - 14.dp)
                     .then(
@@ -191,7 +196,7 @@ fun LiquidBar(
                                 shadow = { Shadow(radius = 10.dp, alpha = 0.20f) },
                                 innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.12f) },
                                 onDrawSurface = {
-                                    drawRect(Color.White.copy(alpha = if (c.dark) 0.16f else 0.34f))
+                                    drawRect(Color.White.copy(alpha = if (c.dark) 0.10f else 0.22f))
                                 },
                             )
                         } else {

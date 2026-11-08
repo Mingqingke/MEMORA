@@ -245,28 +245,31 @@ fun MemoraRoot() {
                         .clipToBounds()
                         .background(MiuixTheme.colorScheme.surface)
                 ) {
-                    NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
+                    androidx.compose.runtime.key(tab) {
+                        NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
+                    }
                 }
             }
         } else {
             val glassOn by com.memora.app.core.Prefs.liquidGlass.collectAsState()
             val glassBackdrop = rememberLayerBackdrop()
-            Scaffold(
-                bottomBar = {
-                    if (glassOn) {
-                        LiquidBar(
-                            items = TABS.map { it.label to it.icon },
-                            current = tab,
-                            onSelect = { tab = it },
-                            backdrop = glassBackdrop,
-                        )
-                    } else {
-                        BottomBar(tab) { tab = it }
+            Box(Modifier.fillMaxSize()) {
+                // 内容层完整铺满并记录进 backdrop，底栏才能采到真实内容
+                Box(Modifier.fillMaxSize().layerBackdrop(glassBackdrop)) {
+                    androidx.compose.runtime.key(tab) {
+                        NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
                     }
-                },
-            ) { padding ->
-                Box(Modifier.fillMaxSize().padding(padding).layerBackdrop(glassBackdrop)) {
-                    NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
+                }
+                if (glassOn) {
+                    LiquidBar(
+                        items = TABS.map { it.label to it.icon },
+                        current = tab,
+                        onSelect = { tab = it },
+                        backdrop = glassBackdrop,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                } else {
+                    Box(Modifier.align(Alignment.BottomCenter)) { BottomBar(tab) { tab = it } }
                 }
             }
         }

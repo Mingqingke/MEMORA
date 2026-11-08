@@ -1,8 +1,8 @@
 {
-  "versionCode": 41,
-  "versionName": "1.2.47",
-  "notes": ["接入 Kyant 液态玻璃库", "更新判断改用 Release 正文里的 code"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.47/MEMORA-v1.2.47.apk",
+  "versionCode": 42,
+  "versionName": "1.2.48",
+  "notes": ["底栏真正叠在页面上 能采到背景", "修复切页不生效", "滑块回到居中"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.48/MEMORA-v1.2.48.apk",
   "size": 12131298,
-  "sha256": "d01cebf98a24aef909dd16be822102c0dd4a61f3ee47714bcf43f41e5b6eb6e5"
+  "sha256": "8063caa245ee40a183e87425dd0800e5d0a6d97a60cba5de8577c2b8bc8c4cee"
 }
