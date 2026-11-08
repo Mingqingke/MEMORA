@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -96,7 +97,16 @@ fun LiquidBar(
             Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .pointerInput(items.size) {
+                .pointerInput(items.size, cellW) {
+                    detectTapGestures { offset ->
+                        val idx = (offset.x / (cellW.toPx())).toInt().coerceIn(0, items.size - 1)
+                        if (idx != current) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSelect(idx)
+                        }
+                    }
+                }
+                .pointerInput(items.size, cellW) {
                     detectHorizontalDragGestures(
                         onDragStart = {
                             dragging = true
@@ -193,14 +203,8 @@ fun LiquidBar(
                 items.forEachIndexed { i, (label, icon) ->
                     val selected = i == current
                     Column(
-                        Modifier
-                            .width(cellW)
-                            .clickable {
-                                if (i != current) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSelect(i)
-                                }
-                            },
+                        // 点击与拖动都交给父级 pointerInput，子项不消费手势
+                        Modifier.width(cellW),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         androidx.compose.material3.Icon(

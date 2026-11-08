@@ -97,6 +97,13 @@ fun ScreenTitle(
     Row(
         Modifier
             .fillMaxWidth()
+            // 顶部玻璃层：半透明渐变 + 底部细线，页面滚动时标题保持可读
+            .background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    0f to c.card.copy(alpha = if (c.dark) 0.60f else 0.78f),
+                    1f to c.card.copy(alpha = if (c.dark) 0.22f else 0.40f),
+                )
+            )
             .padding(start = if (onBack != null) 6.dp else 20.dp, end = 12.dp, top = 8.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

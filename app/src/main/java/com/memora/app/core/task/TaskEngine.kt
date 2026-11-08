@@ -301,6 +301,16 @@ object TaskEngine {
                 delay(4_000L * failures)
                 continue
             }
+            // WAF 拦截（常见 501）不重试，直接标记为被拦截
+            val rawDetail = summary(page)
+            if (rawDetail.contains("501") || rawDetail.contains("WAF", true)) {
+                db.putSourceState(
+                    SourceState(task.accountId, source.id, stream, SourceStatus.BLOCKED,
+                        "被 WAF 拦截（HTTP 501）", System.currentTimeMillis(), 0, 0)
+                )
+                db.log("WARN", "source", "${source.name}/$stream 被拦截，跳过该通道")
+                return StreamOutcome.FAILED
+            }
             if (page is SourcePageError || status == SourceStatus.SERVER_ERROR || status == SourceStatus.PARSE_ERROR || status == SourceStatus.NOT_FOUND) {
                 failures++
                 db.putSourceState(
