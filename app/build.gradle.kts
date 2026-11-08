@@ -24,9 +24,9 @@ android {
         applicationId = "com.memora.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 40
+        versionCode = 41
         buildConfigField("String", "BUILD_TIME", "\"2026-10-31\"")
-        versionName = "1.2.46"
+        versionName = "1.2.47"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -93,6 +93,8 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-icons:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-squircle:0.9.4")
     implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4")
+    // 液态玻璃：Kyant Backdrop（Apache-2.0）
+    implementation("io.github.kyant0:backdrop:2.0.1")
 
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("org.jsoup:jsoup:1.18.3")

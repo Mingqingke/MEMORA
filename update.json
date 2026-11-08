@@ -1,8 +1,8 @@
 {
-  "versionCode": 40,
-  "versionName": "1.2.46",
-  "notes": ["互动与说说彻底分开", "历史卡片按事件类型解析"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.46/MEMORA-v1.2.46.apk",
-  "size": 12082146,
-  "sha256": "f9f37190ca168c5e696dde4040a4da3dbd354cd4c1e693fee7cb318e1e016571"
+  "versionCode": 41,
+  "versionName": "1.2.47",
+  "notes": ["接入 Kyant 液态玻璃库", "更新判断改用 Release 正文里的 code"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.47/MEMORA-v1.2.47.apk",
+  "size": 12131298,
+  "sha256": "d01cebf98a24aef909dd16be822102c0dd4a61f3ee47714bcf43f41e5b6eb6e5"
 }

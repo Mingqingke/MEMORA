@@ -1,14 +1,10 @@
 package com.memora.app.ui.components
 
-import android.os.Build
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,43 +28,37 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.InnerShadow
+import com.kyant.backdrop.shadow.Shadow
 import com.memora.app.ui.theme.LocalMemora
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * 液态玻璃底栏。
- *
- * 背景不是纯色：直接重绘上层内容 layer（轻微放大 + 随滑块位移），
- * 所以玻璃里的内容是真实页面在动，不是贴图。
- *
- * 未使用 AGSL 折射着色器，效果是「重采样 + 位移 + 模糊」，
- * 不是色散级折射，这一点在交付说明里写清楚。
+ * 液态玻璃底栏，玻璃效果由 Kyant Backdrop（Apache-2.0）提供：
+ * 背景图层通过 Modifier.layerBackdrop 记录，这里用 drawBackdrop 采样并加
+ * vibrancy / blur / lens（折射 + 色散）。API 31 以下库内自动降级为纯色。
  */
 @Composable
 fun LiquidBar(
     items: List<Pair<String, androidx.compose.ui.graphics.vector.ImageVector>>,
     current: Int,
     onSelect: (Int) -> Unit,
-    backdrop: GraphicsLayer?,
+    backdrop: LayerBackdrop?,
     modifier: Modifier = Modifier,
 ) {
     val c = LocalMemora.current
@@ -81,25 +72,49 @@ fun LiquidBar(
     LaunchedEffect(current) {
         if (!dragging) anim.animateTo(current.toFloat(), spring(dampingRatio = 0.72f, stiffness = 320f))
     }
-
     val pos = if (dragging) dragValue else anim.value
 
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = 18.dp, end = 18.dp, bottom = 10.dp),
+            .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
     ) {
-        val barW = maxWidth - 0.dp
-        val cellW = barW / items.size
+        val cellW = maxWidth / items.size
         val cellPx = cellW.value
+        val barHeight = 64.dp
+        val thumbW = cellW * 0.82f
 
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .pointerInput(items.size, cellW) {
-                    val cellPxSize = cellW.toPx()
+                .height(barHeight)
+                .then(
+                    if (backdrop != null) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { RoundedCornerShape(barHeight / 2) },
+                            effects = {
+                                vibrancy()
+                                blur(14.dp.toPx())
+                                lens(18.dp.toPx(), 18.dp.toPx(), depthEffect = true, chromaticAberration = true)
+                            },
+                            highlight = { Highlight(width = 1.dp, alpha = 0.9f) },
+                            shadow = { Shadow(radius = 20.dp, alpha = 0.26f) },
+                            innerShadow = { InnerShadow(radius = 10.dp, alpha = 0.14f) },
+                            onDrawSurface = {
+                                drawRect(Color(0xFF101012).copy(alpha = if (c.dark) 0.24f else 0.16f))
+                            },
+                        )
+                    } else {
+                        Modifier.background(
+                            c.card.copy(alpha = 0.85f),
+                            RoundedCornerShape(barHeight / 2),
+                        )
+                    }
+                )
+                .pointerInput(items.size, cellPx) {
+                    val cell = cellW.toPx()
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val startX = down.position.x
@@ -110,9 +125,8 @@ fun LiquidBar(
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) {
-                                // 抬手：没移动就是点击，移动过就吸附
                                 if (!moved) {
-                                    val idx = (startX / cellPxSize).toInt().coerceIn(0, items.size - 1)
+                                    val idx = (startX / cell).toInt().coerceIn(0, items.size - 1)
                                     if (idx != current) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         onSelect(idx)
@@ -141,9 +155,9 @@ fun LiquidBar(
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             }
                             if (moved) {
-                                val delta = (change.position.x - lastX) / cellPxSize
-                                dragValue = (dragValue + delta).coerceIn(0f, (items.size - 1).toFloat())
-                                stretch = (stretch + abs(change.position.x - lastX) * 0.00035f).coerceAtMost(0.34f)
+                                dragValue = (dragValue + (change.position.x - lastX) / cell)
+                                    .coerceIn(0f, (items.size - 1).toFloat())
+                                stretch = (stretch + abs(change.position.x - lastX) * 0.00035f).coerceAtMost(0.30f)
                                 lastX = change.position.x
                                 change.consume()
                             }
@@ -151,75 +165,47 @@ fun LiquidBar(
                     }
                 },
         ) {
-            Canvas(Modifier.matchParentSize()) {
-                val h = size.height
-                val r = h / 2f
-                val capsule = Path().apply {
-                    addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(0f, 0f, size.width, h, androidx.compose.ui.geometry.CornerRadius(r, r)),
-                    )
-                }
-                // 1. 玻璃层：重绘背景内容，放大一点并按滑块位置位移
-                clipPath(capsule) {
-                    // 玻璃底：柔和渐变 + 高光（无 backdrops 采样时也稳定）
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = if (c.dark) 0.10f else 0.30f),
-                            0.5f to Color.White.copy(alpha = if (c.dark) 0.04f else 0.12f),
-                            1f to Color.White.copy(alpha = if (c.dark) 0.02f else 0.06f),
-                        ),
-                    )
-                    // 半透明染色，让文字保持可读
-                    drawRect(color = c.card.copy(alpha = if (c.dark) 0.42f else 0.48f))
-                    // 顶部高光
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = if (c.dark) 0.10f else 0.32f),
-                            0.45f to Color.Transparent,
-                        ),
-                    )
-                }
-                // 2. 外描边
-                drawPath(
-                    capsule,
-                    color = if (c.dark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.85f),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f * density),
-                )
-                // 3. 选中滑块：跟手 + 速度拉伸
-                val baseW = cellPx * 0.78f * density
-                val sliderW = baseW * (1f + stretch)
-                val cx = (pos + 0.5f) * cellPx * density
-                val left = (cx - sliderW / 2f).coerceIn(4f * density, size.width - sliderW - 4f * density)
-                val top = 7f * density
-                val sh = h - 14f * density
-                val slide = Path().apply {
-                    addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            left, top, left + sliderW, top + sh,
-                            androidx.compose.ui.geometry.CornerRadius(sh / 2f, sh / 2f),
-                        ),
-                    )
-                }
-                drawPath(
-                    slide,
-                    brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = if (c.dark) 0.26f else 0.58f),
-                        0.55f to Color.White.copy(alpha = if (c.dark) 0.16f else 0.40f),
-                        1f to Color.White.copy(alpha = if (c.dark) 0.10f else 0.28f),
+            // 选中滑块：同样用玻璃，拖动时横向拉伸
+            val dens = androidx.compose.ui.platform.LocalDensity.current
+            val cellPxV = with(dens) { cellW.toPx() }
+            val thumbPxV = cellPxV * 0.82f * (1f + stretch)
+            val edge = 2f * dens.density
+            val leftPxV = ((pos + 0.5f) * cellPxV - thumbPxV / 2f)
+                .coerceIn(edge, (cellPxV * items.size - thumbPxV - edge).coerceAtLeast(edge))
+            Box(
+                Modifier
+                    .offset { androidx.compose.ui.unit.IntOffset(leftPxV.roundToInt(), 0) }
+                    .width(with(dens) { thumbPxV.toDp() })
+                    .height(barHeight - 14.dp)
+                    .then(
+                        if (backdrop != null) {
+                            Modifier.drawBackdrop(
+                                backdrop = backdrop,
+                                shape = { RoundedCornerShape((barHeight - 14.dp) / 2) },
+                                effects = {
+                                    vibrancy()
+                                    blur(8.dp.toPx())
+                                    lens(22.dp.toPx(), 22.dp.toPx(), depthEffect = true, chromaticAberration = true)
+                                },
+                                highlight = { Highlight(width = 1.dp, alpha = 0.85f) },
+                                shadow = { Shadow(radius = 10.dp, alpha = 0.20f) },
+                                innerShadow = { InnerShadow(radius = 6.dp, alpha = 0.12f) },
+                                onDrawSurface = {
+                                    drawRect(Color.White.copy(alpha = if (c.dark) 0.16f else 0.34f))
+                                },
+                            )
+                        } else {
+                            Modifier.background(
+                                Color.White.copy(alpha = if (c.dark) 0.16f else 0.42f),
+                                RoundedCornerShape((barHeight - 14.dp) / 2),
+                            )
+                        }
                     ),
-                )
-                drawPath(
-                    slide,
-                    color = Color.White.copy(alpha = if (c.dark) 0.22f else 0.95f),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f * density),
-                )
-            }
-
-            Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+            )
+            Row(Modifier.fillMaxWidth().height(barHeight), verticalAlignment = Alignment.CenterVertically) {
                 items.forEachIndexed { i, (label, icon) ->
-                    val selected = i == current
+                    val selected = current == i
                     Column(
-                        // 点击与拖动都交给父级 pointerInput，子项不消费手势
                         Modifier.width(cellW),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {

@@ -115,16 +115,22 @@ object Updater {
             (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
                 .firstOrNull { it.optString("name").endsWith(".apk") }
         }
+        val bodyText = o.optString("body", "")
+        // 和 FriendSim 一致：versionCode 直接写进 Release 正文，避免依赖 update.json 的缓存
+        val codeInBody = Regex("(?m)^\\s*code\\s*=\\s*(\\d+)")
+            .find(bodyText)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
         return Fetched(
             source = source,
             code = code,
             ms = ms,
             versionName = o.optString("name", tag).ifBlank { tag },
-            versionCode = parseVersionCode(tag),
+            versionCode = if (codeInBody > 0) codeInBody else parseVersionCode(tag),
             apkUrl = apk?.optString("browser_download_url", "").orEmpty(),
             size = apk?.optLong("size", 0) ?: 0,
             sha = apk?.optString("digest", "").orEmpty().removePrefix("sha256:"),
-            notes = o.optString("body", "").lines().map { it.trim() }.filter { it.isNotBlank() }.take(8),
+            notes = bodyText.lines().map { it.trim() }
+                .filter { it.isNotBlank() && !it.startsWith("code=") && !it.startsWith("display=") }
+                .take(8),
         )
     }
 

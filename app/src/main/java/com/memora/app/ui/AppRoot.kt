@@ -86,6 +86,8 @@ import com.memora.app.ui.screens.TaskDetailScreen
 import com.memora.app.ui.screens.TasksScreen
 import com.memora.app.ui.screens.UpdateDialog
 import com.memora.app.ui.components.LiquidBar
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.memora.app.ui.theme.LocalMemora
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -248,6 +250,7 @@ fun MemoraRoot() {
             }
         } else {
             val glassOn by com.memora.app.core.Prefs.liquidGlass.collectAsState()
+            val glassBackdrop = rememberLayerBackdrop()
             Scaffold(
                 bottomBar = {
                     if (glassOn) {
@@ -255,14 +258,14 @@ fun MemoraRoot() {
                             items = TABS.map { it.label to it.icon },
                             current = tab,
                             onSelect = { tab = it },
-                            backdrop = null,
+                            backdrop = glassBackdrop,
                         )
                     } else {
                         BottomBar(tab) { tab = it }
                     }
                 },
             ) { padding ->
-                Box(Modifier.fillMaxSize().padding(padding)) {
+                Box(Modifier.fillMaxSize().padding(padding).layerBackdrop(glassBackdrop)) {
                     NavHost(activeNav, reduceMotion, wide, onOpenSettings = { tab = 3 })
                 }
             }
