@@ -161,8 +161,7 @@ fun LiquidBar(
                 },
         ) {
             // 选中滑块：纯 Dp 定位，避免 px/dp 混算造成偏移
-            val pressScale = if (dragging) 1.06f else 1.0f
-            val thumbWidth = cellW * 0.82f * (1f + stretch) * pressScale
+            val thumbWidth = cellW * 0.82f * (1f + stretch)
             val slideX = (cellW * pos + (cellW - thumbWidth) / 2f)
                 .coerceIn(2.dp, cellW * items.size - thumbWidth - 2.dp)
             Box(
@@ -177,10 +176,10 @@ fun LiquidBar(
                                 shape = { RoundedCornerShape((barHeight - 14.dp) / 2) },
                                 effects = {
                                     vibrancy()
-                                    blur((if (dragging) 10.dp else 8.dp).toPx())
+                                    blur(8.dp.toPx())
                                     lens(
-                                        (if (dragging) 30.dp else 22.dp).toPx(),
-                                        (if (dragging) 30.dp else 22.dp).toPx(),
+                                        22.dp.toPx(),
+                                        22.dp.toPx(),
                                         depthEffect = true,
                                         chromaticAberration = true,
                                     )

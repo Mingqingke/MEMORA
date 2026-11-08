@@ -17,5 +17,9 @@ class MemoraApp : Application() {
         if (!com.memora.app.core.Crash.inSafeMode(this)) {
             runCatching { TaskEngine.recoverInterrupted(this) }
         }
+        // 上次异常退出过，就先关掉液态玻璃，避免再次因为渲染崩溃
+        runCatching {
+            if (com.memora.app.core.Crash.streak(this) >= 1) Prefs.setLiquidGlass(false)
+        }
     }
 }

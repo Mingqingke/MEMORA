@@ -45,8 +45,8 @@ object Updater {
     )
 
     private const val RELEASE_API = "https://api.github.com/repos/Mingqingke/MEMORA/releases/latest"
-    private const val PER_SOURCE_TIMEOUT_MS = 3_500L
-    private const val TOTAL_TIMEOUT_MS = 6_000L
+    private const val PER_SOURCE_TIMEOUT_MS = 6_000L
+    private const val TOTAL_TIMEOUT_MS = 12_000L
 
     fun sources(context: Context): List<String> {
         val custom = Prefs.updateSource.value.trim()
@@ -86,7 +86,7 @@ object Updater {
         val cachedBody = sp.getString(key + "_body", "").orEmpty()
         val headers = if (cachedEtag.isNotBlank()) mapOf("If-None-Match" to cachedEtag) else emptyMap()
         val started = System.currentTimeMillis()
-        val res = Net.getWithHeaders(RELEASE_API, headers, 6)
+        val res = Net.getWithHeaders(RELEASE_API, headers, 8)
         val ms = System.currentTimeMillis() - started
         if (res.code == 304 && cachedBody.isNotBlank()) {
             return parseRelease(cachedBody, "release-api(cache)", 304, ms)
@@ -138,7 +138,7 @@ object Updater {
 
     private fun fetchJson(context: Context, url: String): Fetched {
         val started = System.currentTimeMillis()
-        val res = runCatching { Net.get(url, "", "https://memora.app/", timeoutSeconds = 4) }.getOrNull()
+        val res = runCatching { Net.get(url, "", "https://memora.app/", timeoutSeconds = 6) }.getOrNull()
         val ms = System.currentTimeMillis() - started
         if (res == null || !res.ok || res.body.isBlank()) {
             return Fetched(url, res?.code ?: 0, ms, error = if (res == null) "网络不可用" else "HTTP ${res.code}")

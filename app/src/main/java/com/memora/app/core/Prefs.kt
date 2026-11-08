@@ -51,7 +51,7 @@ object Prefs {
 
     val updateSource = MutableStateFlow("")
     val autoCheckUpdate = MutableStateFlow(true)
-    val liquidGlass = MutableStateFlow(true)
+    val liquidGlass = MutableStateFlow(false)
     val ignoredVersion = MutableStateFlow(0)
     val lastCheckAt = MutableStateFlow(0L)
     val updateDiag = MutableStateFlow("")
@@ -84,7 +84,7 @@ object Prefs {
         includeFriends.value = sp.getBoolean("include_friends", true)
         updateSource.value = sp.getString("update_source", "") ?: ""
         autoCheckUpdate.value = sp.getBoolean("auto_check_update", true)
-        liquidGlass.value = sp.getBoolean("liquid_glass", true)
+        liquidGlass.value = sp.getBoolean("liquid_glass", false)
         ignoredVersion.value = sp.getInt("ignored_version", 0)
         lastCheckAt.value = sp.getLong("last_check_at", 0L)
         updateDiag.value = sp.getString("update_diag", "") ?: ""
