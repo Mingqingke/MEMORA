@@ -4,10 +4,11 @@ import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -98,42 +99,56 @@ fun LiquidBar(
                 .fillMaxWidth()
                 .height(64.dp)
                 .pointerInput(items.size, cellW) {
-                    detectTapGestures { offset ->
-                        val idx = (offset.x / (cellW.toPx())).toInt().coerceIn(0, items.size - 1)
-                        if (idx != current) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelect(idx)
+                    val cellPxSize = cellW.toPx()
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startX = down.position.x
+                        val startValue = anim.value
+                        var moved = false
+                        var lastX = startX
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                // 抬手：没移动就是点击，移动过就吸附
+                                if (!moved) {
+                                    val idx = (startX / cellPxSize).toInt().coerceIn(0, items.size - 1)
+                                    if (idx != current) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSelect(idx)
+                                    }
+                                } else {
+                                    val target = dragValue.roundToInt().coerceIn(0, items.size - 1)
+                                    val from = dragValue
+                                    dragging = false
+                                    stretch = 0f
+                                    scope.launch {
+                                        anim.snapTo(from)
+                                        anim.animateTo(target.toFloat(), spring(dampingRatio = 0.62f, stiffness = 380f))
+                                    }
+                                    if (target != current) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onSelect(target)
+                                    }
+                                }
+                                break
+                            }
+                            val dx = change.position.x - startX
+                            if (!moved && abs(dx) > viewConfiguration.touchSlop) {
+                                moved = true
+                                dragging = true
+                                dragValue = startValue
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            if (moved) {
+                                val delta = (change.position.x - lastX) / cellPxSize
+                                dragValue = (dragValue + delta).coerceIn(0f, (items.size - 1).toFloat())
+                                stretch = (stretch + abs(change.position.x - lastX) * 0.00035f).coerceAtMost(0.34f)
+                                lastX = change.position.x
+                                change.consume()
+                            }
                         }
                     }
-                }
-                .pointerInput(items.size, cellW) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            dragging = true
-                            dragValue = anim.value
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        },
-                        onHorizontalDrag = { change, amount ->
-                            change.consume()
-                            val max = (items.size - 1).toFloat()
-                            dragValue = (dragValue + amount / (cellPx * density)).coerceIn(0f, max)
-                            stretch = (stretch + abs(amount) * 0.00025f).coerceAtMost(0.30f)
-                        },
-                        onDragEnd = {
-                            val target = dragValue.roundToInt().coerceIn(0, items.size - 1)
-                            val from = dragValue
-                            dragging = false
-                            stretch = 0f
-                            scope.launch {
-                                anim.snapTo(from)
-                                anim.animateTo(target.toFloat(), spring(dampingRatio = 0.62f, stiffness = 380f))
-                            }
-                            if (target != current) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSelect(target)
-                            }
-                        },
-                    )
                 },
         ) {
             Canvas(Modifier.matchParentSize()) {
@@ -155,7 +170,7 @@ fun LiquidBar(
                         ),
                     )
                     // 半透明染色，让文字保持可读
-                    drawRect(color = c.card.copy(alpha = if (c.dark) 0.55f else 0.62f))
+                    drawRect(color = c.card.copy(alpha = if (c.dark) 0.42f else 0.48f))
                     // 顶部高光
                     drawRect(
                         brush = Brush.verticalGradient(
@@ -188,8 +203,9 @@ fun LiquidBar(
                 drawPath(
                     slide,
                     brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = if (c.dark) 0.20f else 0.92f),
-                        1f to Color.White.copy(alpha = if (c.dark) 0.10f else 0.62f),
+                        0f to Color.White.copy(alpha = if (c.dark) 0.26f else 0.58f),
+                        0.55f to Color.White.copy(alpha = if (c.dark) 0.16f else 0.40f),
+                        1f to Color.White.copy(alpha = if (c.dark) 0.10f else 0.28f),
                     ),
                 )
                 drawPath(

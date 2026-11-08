@@ -70,7 +70,7 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 fun cardColor(): Color {
     val premium by Prefs.premiumMaterial.collectAsState()
     val c = LocalMemora.current
-    return if (premium) c.card.copy(alpha = 0.78f) else c.card
+    return if (premium) c.card.copy(alpha = if (c.dark) 0.70f else 0.74f) else c.card
 }
 
 /** 首页大卡片允许按压形变，普通列表一律不形变。 */
@@ -100,8 +100,8 @@ fun ScreenTitle(
             // 顶部玻璃层：半透明渐变 + 底部细线，页面滚动时标题保持可读
             .background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
-                    0f to c.card.copy(alpha = if (c.dark) 0.60f else 0.78f),
-                    1f to c.card.copy(alpha = if (c.dark) 0.22f else 0.40f),
+                    0f to c.card.copy(alpha = if (c.dark) 0.52f else 0.62f),
+                    1f to c.card.copy(alpha = if (c.dark) 0.18f else 0.28f),
                 )
             )
             .padding(start = if (onBack != null) 6.dp else 20.dp, end = 12.dp, top = 8.dp, bottom = 10.dp),
