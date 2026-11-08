@@ -67,15 +67,7 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                listOfNotNull(
-                    if (info.size > 0) "%.1f MB".format(info.size / 1024f / 1024f) else null,
-                    if (info.sha256.isNotBlank()) "SHA-256" else null,
-                    "GitHub Release",
-                ).joinToString("  ·  "),
-                fontSize = 11.sp, color = c.secondary,
-            )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("当前", fontSize = 10.5.sp, color = c.secondary)
                 Spacer(Modifier.width(6.dp))
@@ -95,7 +87,7 @@ fun UpdateDialog(info: UpdateInfo, onDismiss: () -> Unit) {
                 if (info.notes.isEmpty()) {
                     Text("修复了一些已知问题", fontSize = 12.5.sp)
                 } else {
-                    info.notes.take(8).forEach { line ->
+                    info.notes.take(3).forEach { line ->
                         Text("· $line", fontSize = 12.5.sp, lineHeight = 21.sp)
                     }
                 }

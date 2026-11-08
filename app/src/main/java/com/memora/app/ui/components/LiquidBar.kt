@@ -160,23 +160,15 @@ fun LiquidBar(
                     }
                 },
         ) {
-            // 选中滑块：同样用玻璃，拖动时横向拉伸
-            val dens = androidx.compose.ui.platform.LocalDensity.current
-            val cellPxV = with(dens) { cellW.toPx() }
+            // 选中滑块：纯 Dp 定位，避免 px/dp 混算造成偏移
             val pressScale = if (dragging) 1.06f else 1.0f
-            val thumbPxV = cellPxV * 0.82f * (1f + stretch) * pressScale
-            val edge = 2f * dens.density
-            val leftPxV = ((pos + 0.5f) * cellPxV - thumbPxV / 2f)
-                .coerceIn(edge, (cellPxV * items.size - thumbPxV - edge).coerceAtLeast(edge))
+            val thumbWidth = cellW * 0.82f * (1f + stretch) * pressScale
+            val slideX = (cellW * pos + (cellW - thumbWidth) / 2f)
+                .coerceIn(2.dp, cellW * items.size - thumbWidth - 2.dp)
             Box(
                 Modifier
-                    .offset {
-                        androidx.compose.ui.unit.IntOffset(
-                            leftPxV.roundToInt(),
-                            (7f * dens.density).roundToInt(),
-                        )
-                    }
-                    .width(with(dens) { thumbPxV.toDp() })
+                    .offset(x = slideX, y = 7.dp)
+                    .width(thumbWidth)
                     .height(barHeight - 14.dp)
                     .then(
                         if (backdrop != null) {

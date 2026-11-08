@@ -55,9 +55,11 @@ object Updater {
 
     /** 版本号解析：v1.2.42 / 1.2.42 -> 10242，用于缺少 versionCode 时兜底。 */
     fun parseVersionCode(name: String): Int {
-        val m = Regex("(\\d+)\\.(\\d+)\\.(\\d+)").find(name) ?: return 0
-        val (a, b, c) = m.destructured
-        return (a.toIntOrNull() ?: 0) * 10000 + (b.toIntOrNull() ?: 0) * 100 + (c.toIntOrNull() ?: 0)
+        val m = Regex("(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?").find(name.trim().removePrefix("v")) ?: return 0
+        val a = m.groupValues.getOrNull(1)?.toIntOrNull() ?: 0
+        val b = m.groupValues.getOrNull(2)?.toIntOrNull() ?: 0
+        val c = m.groupValues.getOrNull(3)?.toIntOrNull() ?: 0
+        return a * 10000 + b * 100 + c
     }
 
     private data class Fetched(

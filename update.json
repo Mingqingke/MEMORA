@@ -1,8 +1,8 @@
 {
-  "versionCode": 43,
-  "versionName": "1.2.49",
-  "notes": ["修复底栏点击失效", "滑块按下放大 折射更强", "更新弹窗显示来源与版本对比"],
-  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.49/MEMORA-v1.2.49.apk",
+  "versionCode": 44,
+  "versionName": "1.2.50",
+  "notes": ["滑块位置修正", "两段版本号也能比较", "更新弹窗精简"],
+  "apk": "https://github.com/Mingqingke/MEMORA/releases/download/v1.2.50/MEMORA-v1.2.50.apk",
   "size": 12131298,
-  "sha256": "e1cd61fe5d5bd043c9719b7e5d286671a9458204378f5e39de9b32f287b91896"
+  "sha256": "0fe35996195db4f8f25f1d248a8a0593b5e329c534d41875cbc48d68c2acedef"
 }
